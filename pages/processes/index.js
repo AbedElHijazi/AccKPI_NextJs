@@ -219,9 +219,30 @@ export default function ProcessesPage() {
       async () => {
         setLoadingOverlay(true);
         
-        // Just show success immediately for now
-        setLoadingOverlay(false);
-        showToast('success', 'Test', 'Delete endpoint called for process ' + processId, 3000);
+        try {
+          console.log(`[DELETE] Calling DELETE /api/processes/${processId}`);
+          const res = await fetch(`/api/processes/${processId}`, {
+            method: 'DELETE',
+          });
+
+          const responseData = await res.json();
+          console.log(`[DELETE] Response status: ${res.status}`, responseData);
+
+          if (res.ok) {
+            console.log(`[DELETE] Delete successful`);
+            setLoadingOverlay(false);
+            showToast('success', 'Success', 'Process deleted successfully', 3000);
+            // Refresh the process list
+            await fetchData();
+          } else {
+            setLoadingOverlay(false);
+            showToast('error', 'Error', responseData.error || 'Failed to delete process', 5000);
+          }
+        } catch (err) {
+          console.error(`[DELETE] Exception:`, err);
+          setLoadingOverlay(false);
+          showToast('error', 'Error', 'Failed to delete process: ' + err.message, 5000);
+        }
       }
     );
   };
