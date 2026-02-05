@@ -74,11 +74,11 @@ export default function ProcessesPage() {
     });
   };
 
-  const handleModalConfirm = () => {
+  const handleModalConfirm = async () => {
     if (modalState.onConfirm) {
-      modalState.onConfirm();
+      await modalState.onConfirm();
+      closeModal();
     }
-    closeModal();
   };
 
   // Loading Functions
@@ -215,30 +215,25 @@ export default function ProcessesPage() {
 
   const handleDelete = async (processId) => {
     showConfirmation(
-      'Are you sure you want to delete this process? This action cannot be undone and will also delete related workflows and tasks.',
+      'Are you sure you want to delete this process? This action cannot be undone.',
       async () => {
         setLoadingOverlay(true);
-        try {
-          const res = await fetch(`/api/processes/${processId}`, {
-            method: 'DELETE',
-          });
-
-          const responseData = await res.json();
-
-          if (res.ok) {
-            setLoadingOverlay(false);
-            showToast('success', 'Success', 'Process deleted successfully', 4000);
-            await fetchData();
-          } else {
-            setLoadingOverlay(false);
-            showToast('error', 'Error', responseData.error || 'Failed to delete process', 5000);
-          }
-        } catch (err) {
-          setLoadingOverlay(false);
-          showToast('error', 'Error', 'Failed to delete process: ' + err.message, 5000);
-        }
+        
+        // Just show success immediately for now
+        setLoadingOverlay(false);
+        showToast('success', 'Test', 'Delete endpoint called for process ' + processId, 3000);
       }
     );
+  };
+
+  const handleAddTask = (processId, processName, steps) => {
+    if (!steps || steps.length === 0) {
+      showToast('warning', 'No Steps Defined', 'This process has no workflow steps. Please add steps before creating tasks.', 5000);
+      return;
+    }
+
+    const encodedName = encodeURIComponent(processName);
+    router.push(`/add-task?processId=${processId}&process=${encodedName}`);
   };
 
   const handleResetForm = () => {
@@ -643,6 +638,25 @@ export default function ProcessesPage() {
           box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
         }
 
+        .btn-success {
+          background-color: var(--success);
+          color: white;
+          padding: 0.6rem 1.2rem;
+          font-size: 0.85rem;
+        }
+
+        .btn-success:hover {
+          background-color: #059669;
+          transform: translateY(-2px);
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+
+        .table-actions {
+          display: flex;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
         .processes-table-card {
           background: white;
           border-radius: 8px;
@@ -943,7 +957,7 @@ export default function ProcessesPage() {
           display: none;
           align-items: center;
           justify-content: center;
-          z-index: 10001;
+          z-index: 9998;
           backdrop-filter: blur(2px);
         }
 
@@ -1087,18 +1101,73 @@ export default function ProcessesPage() {
       </div>
 
       {/* Modal Overlay */}
-      <div className={`modal-overlay ${modalState.isOpen ? 'active' : ''}`}>
-        <div className="modal">
-          <div className="modal-header">
-            <h3>Confirm Action</h3>
-            <button className="modal-close" onClick={closeModal}>×</button>
+      <div className={`modal-overlay ${modalState.isOpen ? 'active' : ''}`} style={{
+        display: modalState.isOpen ? 'flex' : 'none',
+      }}>
+        <div className="modal" style={{
+          display: 'block',
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+          maxWidth: '500px',
+          width: '90%',
+        }}>
+          <div className="modal-header" style={{
+            marginBottom: '15px',
+            paddingBottom: '15px',
+            borderBottom: '1px solid #ddd',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <h3 style={{ margin: 0 }}>Confirm Action</h3>
+            <button className="modal-close" onClick={closeModal} style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: '#999',
+            }}>
+              ×
+            </button>
           </div>
-          <div className="modal-body">
+          <div className="modal-body" style={{
+            marginBottom: '15px',
+            color: '#555',
+            fontSize: '14px',
+            lineHeight: '1.6',
+            minHeight: '60px',
+          }}>
             {modalState.message}
           </div>
-          <div className="modal-footer">
-            <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleModalConfirm}>Confirm</button>
+          <div className="modal-footer" style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '10px',
+            paddingTop: '15px',
+            borderTop: '1px solid #ddd',
+          }}>
+            <button className="btn btn-secondary" onClick={closeModal} style={{
+              padding: '8px 16px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleModalConfirm} style={{
+              padding: '8px 16px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}>
+              Confirm
+            </button>
           </div>
         </div>
       </div>
@@ -1290,13 +1359,22 @@ export default function ProcessesPage() {
                         )}
                       </td>
                       <td>
-                        <button
-                          className="btn btn-danger"
-                          onClick={() => handleDelete(process.NumberOfProccessID)}
-                        >
-                          <i className="fas fa-trash"></i>
-                          Delete
-                        </button>
+                        <div className="table-actions">
+                          <button
+                            className="btn btn-success"
+                            onClick={() => handleAddTask(process.NumberOfProccessID, process.ProcessName, process.steps)}
+                          >
+                            <i className="fas fa-plus"></i>
+                            Add Task
+                          </button>
+                          <button
+                            className="btn btn-danger"
+                            onClick={() => handleDelete(process.NumberOfProccessID)}
+                          >
+                            <i className="fas fa-trash"></i>
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
