@@ -202,6 +202,53 @@ export default function AddTaskPage() {
     }
   };
 
+  // Edit task
+  const handleEditTask = (taskId) => {
+    const task = tasks.find(t => t.TaskID === taskId);
+    if (!task) return;
+
+    setEditingTask(task);
+    setEditForm({
+      TaskName: task.TaskName || '',
+      TaskPlanned: task.TaskPlanned || '',
+      DaysRequired: task.DaysRequired || '',
+      IsFixed: task.IsFixed || 0,
+    });
+  };
+
+  // Save edited task
+  const handleSaveEdit = async () => {
+    if (!editingTask) return;
+
+    if (!editForm.TaskName.trim() || !editForm.TaskPlanned.trim() || !editForm.DaysRequired) {
+      showToast('error', 'Validation Error', 'All fields are required');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/tasks/${editingTask.TaskID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          TaskName: editForm.TaskName,
+          TaskPlanned: editForm.TaskPlanned,
+          DaysRequired: parseInt(editForm.DaysRequired),
+          IsFixed: editForm.IsFixed,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update task');
+
+      showToast('success', 'Success', 'Task updated successfully');
+      setEditingTask(null);
+      setEditForm({});
+      await loadTasks();
+    } catch (err) {
+      console.error('Error:', err);
+      showToast('error', 'Error', err.message || 'Failed to update task');
+    }
+  };
+
   // Filter and paginate tasks
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.TaskName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -902,7 +949,7 @@ export default function AddTaskPage() {
                           <td>{task.IsFixed ? 'Yes' : 'No'}</td>
                           <td>
                             <div className="task-actions">
-                              <button className="edit-btn" onClick={() => { /* Edit logic */ }}>
+                              <button className="edit-btn" onClick={() => handleEditTask(task.TaskID)}>
                                 <i className="fas fa-edit"></i> Edit
                               </button>
                               <button 
@@ -936,6 +983,135 @@ export default function AddTaskPage() {
             </>
           )}
         </div>
+
+        {editingTask && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '30px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}>
+              <h2 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>Edit Task</h2>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Task Name</label>
+                <input
+                  type="text"
+                  value={editForm.TaskName || ''}
+                  onChange={(e) => setEditForm({ ...editForm, TaskName: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Description</label>
+                <textarea
+                  value={editForm.TaskPlanned || ''}
+                  onChange={(e) => setEditForm({ ...editForm, TaskPlanned: e.target.value })}
+                  maxLength="255"
+                  rows="3"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  {editForm.TaskPlanned?.length || 0}/255
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Days Required</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editForm.DaysRequired || ''}
+                  onChange={(e) => setEditForm({ ...editForm, DaysRequired: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.IsFixed === 1 || false}
+                    onChange={(e) => setEditForm({ ...editForm, IsFixed: e.target.checked ? 1 : 0 })}
+                  />
+                  Task is Fixed (cannot be delayed)
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setEditingTask(null);
+                    setEditForm({});
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    backgroundColor: '#f5f5f5',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    backgroundColor: '#005bab',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="toast-container">

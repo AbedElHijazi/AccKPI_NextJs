@@ -56,25 +56,52 @@ async function getTaskDetail(taskId, res) {
 }
 
 async function updateTask(taskId, req, res) {
-  const { taskName, priority, daysRequired, isTaskSelected } = req.body;
+  const { 
+    taskName, TaskName,
+    taskPlanned, TaskPlanned,
+    priority, Priority,
+    daysRequired, DaysRequired,
+    isTaskSelected, IsTaskSelected,
+    isFixed, IsFixed
+  } = req.body;
+
+  const name = TaskName || taskName;
+  const description = TaskPlanned || taskPlanned;
+  const days = DaysRequired !== undefined ? DaysRequired : daysRequired;
+  const fixed = IsFixed !== undefined ? IsFixed : isFixed;
+  const selected = IsTaskSelected !== undefined ? IsTaskSelected : isTaskSelected;
+  const prio = Priority !== undefined ? Priority : priority;
 
   try {
     const pool = await getPool();
 
     let updateQuery = 'UPDATE tblTasks SET ';
     const updates = [];
+    const request = pool.request().input('taskId', sql.Int, taskId);
 
-    if (taskName !== undefined) {
-      updates.push('TaskName = @taskName');
+    if (name !== undefined) {
+      updates.push('TaskName = @TaskName');
+      request.input('TaskName', sql.NVarChar(150), name);
     }
-    if (priority !== undefined) {
-      updates.push('Priority = @priority');
+    if (description !== undefined) {
+      updates.push('TaskPlanned = @TaskPlanned');
+      request.input('TaskPlanned', sql.NVarChar, description);
     }
-    if (daysRequired !== undefined) {
-      updates.push('DaysRequired = @daysRequired');
+    if (days !== undefined) {
+      updates.push('DaysRequired = @DaysRequired');
+      request.input('DaysRequired', sql.Int, parseInt(days));
     }
-    if (isTaskSelected !== undefined) {
-      updates.push('IsTaskSelected = @isTaskSelected');
+    if (prio !== undefined) {
+      updates.push('Priority = @Priority');
+      request.input('Priority', sql.Int, prio);
+    }
+    if (selected !== undefined) {
+      updates.push('IsTaskSelected = @IsTaskSelected');
+      request.input('IsTaskSelected', sql.Bit, selected);
+    }
+    if (fixed !== undefined) {
+      updates.push('IsFixed = @IsFixed');
+      request.input('IsFixed', sql.Bit, fixed ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -83,30 +110,17 @@ async function updateTask(taskId, req, res) {
 
     updateQuery += updates.join(', ') + ' WHERE TaskID = @taskId';
 
-    const request = pool.request().input('taskId', sql.Int, taskId);
-
-    if (taskName !== undefined) {
-      request.input('taskName', sql.NVarChar, taskName);
-    }
-    if (priority !== undefined) {
-      request.input('priority', sql.Int, priority);
-    }
-    if (daysRequired !== undefined) {
-      request.input('daysRequired', sql.Int, daysRequired);
-    }
-    if (isTaskSelected !== undefined) {
-      request.input('isTaskSelected', sql.Bit, isTaskSelected);
-    }
-
     await request.query(updateQuery);
 
+    console.log(`[TASKS API] Updated task ${taskId}`);
     return res.status(200).json({
       success: true,
-      message: 'Task updated successfully'
+      message: 'Task updated successfully',
+      taskId: taskId
     });
   } catch (error) {
-    console.error('Error updating task:', error);
-    return res.status(500).json({ error: 'Failed to update task' });
+    console.error('[TASKS API] Error updating task:', error);
+    return res.status(500).json({ error: 'Failed to update task: ' + error.message });
   }
 }
 
