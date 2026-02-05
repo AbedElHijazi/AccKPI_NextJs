@@ -328,6 +328,9 @@ export default function AdminPage() {
           cursor: pointer;
           font-weight: 600;
           transition: var(--transition);
+          display: inline-block;
+          text-decoration: none;
+          font-size: 0.95rem;
         }
 
         .add-btn:hover {
@@ -364,14 +367,14 @@ export default function AdminPage() {
         td {
           padding: 1rem;
         }
-
         .action-buttons {
           display: flex;
           gap: 0.5rem;
           flex-wrap: wrap;
         }
 
-        .action-buttons button {
+        .action-buttons button,
+        .action-buttons a {
           background-color: var(--primary);
           color: white;
           border: none;
@@ -381,9 +384,14 @@ export default function AdminPage() {
           cursor: pointer;
           transition: var(--transition);
           white-space: nowrap;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
         }
 
-        .action-buttons button:hover {
+        .action-buttons button:hover,
+        .action-buttons a:hover {
           background-color: var(--primary-dark);
           transform: translateY(-1px);
         }
@@ -440,7 +448,7 @@ export default function AdminPage() {
               <span className="btn-label">Add Workflow</span>
               <span className="btn-subtitle">New workflow</span>
             </a>
-            <a href="#" className="action-btn" title="Manage processes">
+            <a href="/processes" className="action-btn" title="Manage processes">
               <i className="fas fa-cogs"></i>
               <span className="btn-label">Processes</span>
               <span className="btn-subtitle">Process management</span>
@@ -583,7 +591,7 @@ export default function AdminPage() {
         <div className="table-container">
           <div className="table-header">
             <h3><i className="fas fa-cogs"></i> Processes</h3>
-            <button className="add-btn">+ Add Process</button>
+            <a href="/processes" className="add-btn">+ Manage Processes</a>
           </div>
           {loadingData ? (
             <p>Loading processes...</p>
@@ -605,8 +613,8 @@ export default function AdminPage() {
                     <td>{process.processDesc || '-'}</td>
                     <td>
                       <div className="action-buttons">
-                        <button>Edit</button>
-                        <button>Delete</button>
+                        <a href="/processes">Edit</a>
+                        <a href="/processes">Delete</a>
                       </div>
                     </td>
                   </tr>

@@ -283,7 +283,8 @@ export default function Homepage() {
           flex-wrap: wrap;
         }
 
-        .action-buttons button {
+        .action-buttons button,
+        .action-buttons a.btn-action {
           background-color: var(--primary);
           color: var(--white);
           border: none;
@@ -296,9 +297,11 @@ export default function Homepage() {
           align-items: center;
           gap: 0.4rem;
           white-space: nowrap;
+          text-decoration: none;
         }
 
-        .action-buttons button:hover {
+        .action-buttons button:hover,
+        .action-buttons a.btn-action:hover {
           background-color: var(--primary-dark);
           transform: translateY(-1px);
         }
@@ -402,8 +405,13 @@ export default function Homepage() {
             </a>
             {user.usrAdmin && (
               <>
-                <a href="/adminpage" className="action-btn" title="Admin dashboard">
+                <a href="/processes" className="action-btn" title="Manage processes">
                   <i className="fas fa-cogs"></i>
+                  <span className="btn-label">Manage Processes</span>
+                  <span className="btn-subtitle">Process management</span>
+                </a>
+                <a href="/adminpage" className="action-btn" title="Admin dashboard">
+                  <i className="fas fa-shield-alt"></i>
                   <span className="btn-label">Admin Panel</span>
                   <span className="btn-subtitle">System management</span>
                 </a>
@@ -434,11 +442,11 @@ export default function Homepage() {
                     <td>{process.processDesc || 'No description'}</td>
                     <td className="actions-cell">
                       <div className="action-buttons">
-                        <button title="View process"><i className="fas fa-project-diagram"></i> View</button>
+                        <a href="/processes" title="View processes" className="btn-action"><i className="fas fa-project-diagram"></i> View</a>
                         {user.usrAdmin && (
                           <>
-                            <button title="Edit process"><i className="fas fa-edit"></i> Edit</button>
-                            <button title="Manage tasks"><i className="fas fa-tasks"></i> Task</button>
+                            <a href="/processes" title="Manage processes" className="btn-action"><i className="fas fa-edit"></i> Edit</a>
+                            <a href="/processes" title="Manage tasks" className="btn-action"><i className="fas fa-tasks"></i> Tasks</a>
                           </>
                         )}
                       </div>
