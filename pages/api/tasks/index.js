@@ -29,6 +29,7 @@ async function getTasks(req, res) {
         t.DaysRequired,
         t.proccessID,
         t.IsFixed,
+        t.Priority,
         t.WorkFlowHdrID,
         d.DeptName,
         pr.ProcessName

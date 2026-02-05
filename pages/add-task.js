@@ -210,12 +210,34 @@ export default function AddTaskPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const paginatedTasks = filteredTasks.slice(
+  // Group tasks by department
+  const groupedTasks = {};
+  filteredTasks.forEach(task => {
+    if (!groupedTasks[task.DepId]) {
+      groupedTasks[task.DepId] = {
+        DeptName: task.DeptName || 'Unknown',
+        StepOrder: processSteps.find(p => p.DepartmentID === task.DepId)?.StepOrder ?? 9999,
+        Tasks: []
+      };
+    }
+    groupedTasks[task.DepId].Tasks.push(task);
+  });
+
+  // Sort groups by StepOrder and tasks by Priority
+  const sortedGroups = Object.values(groupedTasks)
+    .sort((a, b) => a.StepOrder - b.StepOrder)
+    .map(group => ({
+      ...group,
+      Tasks: group.Tasks.sort((a, b) => (a.Priority ?? 9999) - (b.Priority ?? 9999))
+    }));
+
+  // Paginate the groups
+  const paginatedGroups = sortedGroups.slice(
     (currentPage - 1) * tasksPerPage,
     currentPage * tasksPerPage
   );
 
-  const totalPages = Math.ceil(filteredTasks.length / tasksPerPage);
+  const totalPages = Math.ceil(sortedGroups.length / tasksPerPage);
 
   if (loading || !processId) {
     return (
@@ -524,6 +546,10 @@ export default function AddTaskPage() {
           background-color: var(--light);
         }
 
+        .department-group {
+          margin-bottom: 25px;
+        }
+
         .task-actions {
           display: flex;
           gap: 8px;
@@ -680,11 +706,18 @@ export default function AddTaskPage() {
                 className={errors.DepId ? 'error' : ''}
               >
                 <option value="">Select a department</option>
-                {departments.map(dept => (
-                  <option key={dept.DepartmentID} value={dept.DepartmentID}>
-                    {dept.DeptName}
-                  </option>
-                ))}
+                {departments
+                  .filter(dept => processSteps.some(p => p.DepartmentID === dept.DepartmentID))
+                  .map(dept => ({
+                    ...dept,
+                    StepOrder: processSteps.find(p => p.DepartmentID === dept.DepartmentID)?.StepOrder ?? 9999
+                  }))
+                  .sort((a, b) => a.StepOrder - b.StepOrder)
+                  .map(dept => (
+                    <option key={dept.DepartmentID} value={dept.DepartmentID}>
+                      Step {dept.StepOrder} - {dept.DeptName}
+                    </option>
+                  ))}
               </select>
               {errors.DepId && <div className="validation-error visible">{errors.DepId}</div>}
             </div>
@@ -754,11 +787,21 @@ export default function AddTaskPage() {
                 onChange={handleInputChange}
               >
                 <option value="">-- No Link --</option>
-                {tasks.filter(t => t.TaskID !== editingTask?.TaskID).map(task => (
-                  <option key={task.TaskID} value={task.TaskID}>
-                    {task.TaskName}
-                  </option>
-                ))}
+                {tasks
+                  .filter(t => t.TaskID !== editingTask?.TaskID)
+                  .map(task => ({
+                    ...task,
+                    StepOrder: processSteps.find(p => p.DepartmentID === task.DepId)?.StepOrder ?? 9999
+                  }))
+                  .sort((a, b) => {
+                    if (a.StepOrder !== b.StepOrder) return a.StepOrder - b.StepOrder;
+                    return (a.Priority ?? 9999) - (b.Priority ?? 9999);
+                  })
+                  .map(task => (
+                    <option key={task.TaskID} value={task.TaskID}>
+                      {task.TaskName} ({task.DeptName})
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -812,40 +855,70 @@ export default function AddTaskPage() {
             </div>
           ) : (
             <>
-              <table className="tasks-table">
-                <thead>
-                  <tr>
-                    <th>Task Name</th>
-                    <th>Department</th>
-                    <th>Days</th>
-                    <th>Fixed</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedTasks.map(task => (
-                    <tr key={task.TaskID}>
-                      <td>{task.TaskName}</td>
-                      <td>{task.DeptName || 'N/A'}</td>
-                      <td>{task.DaysRequired || 0}</td>
-                      <td>{task.IsFixed ? 'Yes' : 'No'}</td>
-                      <td>
-                        <div className="task-actions">
-                          <button className="edit-btn" onClick={() => { /* Edit logic */ }}>
-                            <i className="fas fa-edit"></i> Edit
-                          </button>
-                          <button 
-                            className="delete-btn" 
-                            onClick={() => handleDeleteTask(task.TaskID)}
-                          >
-                            <i className="fas fa-trash"></i> Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {paginatedGroups.map((group) => (
+                <div key={`dept-${group.DeptName}`} style={{ marginBottom: '30px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '15px',
+                    backgroundColor: '#f0f6ff',
+                    borderLeft: '4px solid #005bab',
+                    marginBottom: '15px',
+                    borderRadius: '6px'
+                  }}>
+                    <i className="fas fa-building" style={{ color: '#005bab', fontSize: '18px' }}></i>
+                    <h3 style={{ margin: 0, fontSize: '16px', flex: 1 }}>
+                      Step {group.StepOrder} - {group.DeptName}
+                    </h3>
+                    <span style={{
+                      background: '#005bab',
+                      color: 'white',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}>
+                      {group.Tasks.length} tasks
+                    </span>
+                  </div>
+                  
+                  <table className="tasks-table">
+                    <thead>
+                      <tr>
+                        <th>Task Name</th>
+                        <th>Days</th>
+                        <th>Priority</th>
+                        <th>Fixed</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.Tasks.map(task => (
+                        <tr key={task.TaskID}>
+                          <td>{task.TaskName}</td>
+                          <td>{task.DaysRequired || 0}</td>
+                          <td>{task.Priority || '-'}</td>
+                          <td>{task.IsFixed ? 'Yes' : 'No'}</td>
+                          <td>
+                            <div className="task-actions">
+                              <button className="edit-btn" onClick={() => { /* Edit logic */ }}>
+                                <i className="fas fa-edit"></i> Edit
+                              </button>
+                              <button 
+                                className="delete-btn" 
+                                onClick={() => handleDeleteTask(task.TaskID)}
+                              >
+                                <i className="fas fa-trash"></i> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
 
               {totalPages > 1 && (
                 <div className="pagination">
