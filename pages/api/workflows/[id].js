@@ -37,7 +37,7 @@ async function getWorkflowDetail(workflowId, res) {
         pj.ProjectName,
         pk.PkgeName
       FROM tblWorkflowHdr hdr
-      LEFT JOIN tblProcess pr ON hdr.processID = pr.NumberOfProcessID
+      LEFT JOIN tblProcess pr ON hdr.processID = pr.NumberOfProccessID
       LEFT JOIN tblProject pj ON hdr.projectID = pj.ProjectID
       LEFT JOIN tblPackages pk ON hdr.packageID = pk.PkgeId
       WHERE hdr.WorkFlowID = @id

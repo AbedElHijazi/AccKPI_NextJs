@@ -29,7 +29,7 @@ export default async function handler(req, res) {
         pr.ProcessName,
         pj.ProjectName
       FROM tblWorkflowHdr hdr
-      LEFT JOIN tblProcess pr ON hdr.processID = pr.NumberOfProcessID
+      LEFT JOIN tblProcess pr ON hdr.processID = pr.NumberOfProccessID
       LEFT JOIN tblProject pj ON hdr.projectID = pj.ProjectID
       ORDER BY hdr.createdDate DESC
     `);
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
         pr.ProcessName
       FROM tblTasks t
       LEFT JOIN tblDepartments d ON t.DepId = d.DepartmentID
-      LEFT JOIN tblProcess pr ON t.proccessID = pr.NumberOfProcessID
+      LEFT JOIN tblProcess pr ON t.proccessID = pr.NumberOfProccessID
       WHERE t.IsTaskSelected = 0
       ORDER BY t.Priority DESC, t.TaskName ASC
     `);

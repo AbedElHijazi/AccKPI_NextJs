@@ -17,10 +17,13 @@ export default function Login() {
         const response = await fetch('/api/projects');
         if (response.ok) {
           const data = await response.json();
+          console.log('Projects loaded:', data);
           setProjects(data);
           if (data.length > 0) {
-            setProject(data[0].projectID?.toString());
+            setProject(data[0].ProjectID?.toString());
           }
+        } else {
+          console.error('Failed to load projects:', response.status);
         }
       } catch (err) {
         console.error('Failed to load projects:', err);
@@ -126,8 +129,8 @@ export default function Login() {
               >
                 <option value="">Select a project...</option>
                 {projects.map(p => (
-                  <option key={p.projectID} value={p.projectID}>
-                    {p.projectName}
+                  <option key={p.ProjectID} value={p.ProjectID}>
+                    {p.ProjectName}
                   </option>
                 ))}
               </select>

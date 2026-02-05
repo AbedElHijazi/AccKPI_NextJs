@@ -31,7 +31,7 @@ async function getTasks(req, res) {
         pr.ProcessName
       FROM tblTasks t
       LEFT JOIN tblDepartments d ON t.DepId = d.DepartmentID
-      LEFT JOIN tblProcess pr ON t.proccessID = pr.NumberOfProcessID
+      LEFT JOIN tblProcess pr ON t.proccessID = pr.NumberOfProccessID
       WHERE 1=1
     `;
 
