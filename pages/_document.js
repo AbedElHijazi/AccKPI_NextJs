@@ -7,14 +7,18 @@ export default class MyDocument extends Document {
         <Head>
           <meta charSet="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <link href="/css/bootstrap.min.css" rel="stylesheet" />
-          <link href="/css/fontawesome.min.css" rel="stylesheet" />
-          <link href="/css/all.min.css" rel="stylesheet" />
-          <link href="/styles/utils.css" rel="stylesheet" />
+          <link rel="stylesheet" href="/css/bootstrap.min.css" />
+          <link rel="stylesheet" href="/css/fontawesome.min.css" />
+          <link rel="stylesheet" href="/css/all.min.css" />
+          <link rel="stylesheet" href="/css/brands.min.css" />
+          <link rel="stylesheet" href="/css/regular.min.css" />
+          <link rel="stylesheet" href="/css/solid.min.css" />
+          <link rel="stylesheet" href="/styles/utils.css" />
         </Head>
         <body>
           <Main />
           <NextScript />
+          <script src="/js/bootstrap.bundle.min.js"></script>
         </body>
       </Html>
     );

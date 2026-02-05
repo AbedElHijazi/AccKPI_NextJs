@@ -9,19 +9,20 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^14.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "@azure/identity": "^4.13.0",
     "bullmq": "^5.56.10",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "mssql": "^11.0.1",
-    "nodemailer": "^7.0.3",
-    "resend": "^4.7.0",
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
-    "cors": "^2.8.5"
+    "iron-session": "^8.0.4",
+    "mssql": "^11.0.1",
+    "next": "^14.0.0",
+    "nodemailer": "^7.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "resend": "^4.7.0"
   },
   "devDependencies": {
     "eslint": "^8.0.0",

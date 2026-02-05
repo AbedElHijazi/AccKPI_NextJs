@@ -1,5 +1,5 @@
+import { getSessionServerSide } from '@/lib/session';
 import { getPool } from '@/lib/db';
-import { getUserById } from '@/lib/helpers';
 import sql from 'mssql';
 
 export default async function handler(req, res) {
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       .input('username', sql.VarChar, username.toLowerCase().trim())
       .input('password', sql.VarChar, password.trim())
       .query(`
-        SELECT usrID, usrDesc, DepartmentID, usrAdmin, IsSpecialUser 
+        SELECT usrID, usrDesc, usrEmail, DepartmentID, usrAdmin, IsSpecialUser 
         FROM tblUsers 
         WHERE LOWER(usrEmail) = @username AND usrPWD = @password
       `);
@@ -31,27 +31,23 @@ export default async function handler(req, res) {
     if (result.recordset.length === 1) {
       const user = result.recordset[0];
 
-      // Set session data
-      req.session.userId = user.usrID;
-      req.session.user = {
+      // Get session and store user data
+      const session = await getSessionServerSide(req, res);
+      session.user = {
         id: user.usrID,
         name: user.usrDesc,
+        email: user.usrEmail,
         usrAdmin: user.usrAdmin,
         DepartmentId: user.DepartmentID,
         IsSpecialUser: user.IsSpecialUser,
         ProjectID: parseInt(project)
       };
-
-      await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+      await session.save();
 
       return res.json({
         success: true,
-        redirect: user.usrAdmin ? "/adminpage" : "/workFlowDash"
+        user: session.user,
+        redirect: user.usrAdmin ? "/adminpage" : "/workflowdash"
       });
     } else {
       return res.json({ success: false, message: "Invalid username or password" });
