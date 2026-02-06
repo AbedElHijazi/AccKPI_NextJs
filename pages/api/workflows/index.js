@@ -43,7 +43,7 @@ async function getWorkflows(res) {
 }
 
 async function createWorkflow(req, res) {
-  const { processID, projectID, packageID } = req.body;
+  const { processID, projectID, packageID, startDate, status = 'Pending' } = req.body;
 
   if (!processID || !projectID || !packageID) {
     return res.status(400).json({ error: 'processID, projectID, and packageID are required' });
@@ -52,16 +52,23 @@ async function createWorkflow(req, res) {
   try {
     const pool = await getPool();
 
+    // Parse startDate if provided, otherwise use current date
+    let workflowStartDate = new Date();
+    if (startDate) {
+      workflowStartDate = new Date(startDate);
+    }
+
     // Create workflow header
     const insertResult = await pool.request()
       .input('processID', sql.Int, processID)
       .input('projectID', sql.Int, projectID)
       .input('packageID', sql.Int, packageID)
-      .input('startDate', sql.DateTime, new Date())
+      .input('startDate', sql.Date, workflowStartDate)
+      .input('status', sql.VarChar(50), status)
       .query(`
         INSERT INTO tblWorkflowHdr (processID, projectID, packageID, startDate, status, createdDate)
         OUTPUT INSERTED.WorkFlowID, INSERTED.processID, INSERTED.projectID, INSERTED.packageID, INSERTED.startDate, INSERTED.status
-        VALUES (@processID, @projectID, @packageID, @startDate, 'Active', GETDATE())
+        VALUES (@processID, @projectID, @packageID, @startDate, @status, GETDATE())
       `);
 
     if (insertResult.recordset.length === 0) {
@@ -102,6 +109,7 @@ async function createWorkflow(req, res) {
 
     return res.status(201).json({
       success: true,
+      workflowID: newWorkflow.WorkFlowID,
       workflow: newWorkflow,
       message: 'Workflow created successfully'
     });

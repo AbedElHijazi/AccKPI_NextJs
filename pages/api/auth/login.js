@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       return res.json({
         success: true,
         user: session.user,
-        redirect: user.usrAdmin ? "/adminpage" : "/workflowdash"
+        redirect: user.usrAdmin ? "/adminpage" : "/workflowdashboard"
       });
     } else {
       return res.json({ success: false, message: "Invalid username or password" });
