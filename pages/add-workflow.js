@@ -172,16 +172,19 @@ export default function AddWorkflow() {
     setSubmitting(true);
 
     try {
-      // Create workflow
+      // Use projectID from login session (like the original accKPI)
+      const projectID = selectedProjectID ? parseInt(selectedProjectID) : parseInt(formData.projectID);
+
+      // Step 1: Create workflow with all basic data
       const workflowRes = await fetch('/api/workflows', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          processID: formData.processID,
-          projectID: formData.projectID,
-          packageID: formData.packageID,
+          processID: parseInt(formData.processID),
+          projectID: projectID,
+          packageID: parseInt(formData.packageID),
           startDate: formData.startDate,
           status: formData.status
         })
@@ -193,19 +196,19 @@ export default function AddWorkflow() {
       }
 
       const workflowData = await workflowRes.json();
-      const workflowID = workflowData.workflowID || workflowData.id;
+      const workflowID = workflowData.workflowID;
 
-      // Add supplier information
+      // Step 2: Add supplier information
       const supplierRes = await fetch('/api/suppliers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          supplierName: formData.supplierName,
+          supplierName: parseInt(formData.supplierName),
           supplierType: formData.supplierType,
           workFlowID: workflowID,
-          totalPayment: formData.totalPayment,
+          totalPayment: parseFloat(formData.totalPayment),
           locationtype: formData.locationtype
         })
       });
@@ -215,11 +218,11 @@ export default function AddWorkflow() {
       }
 
       const supplierData = await supplierRes.json();
-      const supplierID = supplierData.supplier?.supplierID || supplierData.id;
+      const supplierID = supplierData.supplier?.supplierID;
 
-      // Create workflow steps if international with multiple payments
+      // Step 3: Create workflow steps if international with multiple payments
       if (formData.locationtype === 'International' && formData.paymentInstallments.length > 0) {
-        await fetch('/api/workflow-steps', {
+        const stepsRes = await fetch('/api/workflow-steps', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -230,9 +233,13 @@ export default function AddWorkflow() {
             numberOfPayments: parseInt(formData.paymentInstallments[0])
           })
         });
+
+        if (!stepsRes.ok) {
+          console.error('Failed to create workflow steps');
+        }
       }
 
-      showAlert('Workflow created successfully!', 'success');
+      showAlert('Workflow and supplier added successfully!', 'success');
 
       // Reset form
       setFormData({
@@ -248,13 +255,13 @@ export default function AddWorkflow() {
         paymentInstallments: []
       });
 
-      // Redirect after delay
+      // Redirect to workflow dashboard after alert (similar to accKPI)
       setTimeout(() => {
         router.push('/workflowdashboard');
-      }, 2000);
+      }, 3000);
     } catch (err) {
       console.error('Error:', err);
-      showAlert(err.message || 'An error occurred', 'danger');
+      showAlert('An error occurred: ' + err.message, 'danger');
     } finally {
       setSubmitting(false);
     }

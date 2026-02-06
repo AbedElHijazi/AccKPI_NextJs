@@ -81,7 +81,7 @@ async function createWorkflow(req, res) {
     const deptResult = await pool.request()
       .input('processID', sql.Int, processID)
       .query(`
-        SELECT DISTINCT DepartmentID 
+        SELECT DISTINCT DepartmentID, StepOrder
         FROM tblProcessDepartment 
         WHERE ProcessID = @processID 
         ORDER BY StepOrder

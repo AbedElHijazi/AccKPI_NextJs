@@ -21,9 +21,8 @@ async function getSuppliers(res) {
         supplierType,
         workFlowID,
         totalPayment,
-        locationtype,
         createdDate
-      FROM tblSuppliers
+      FROM tblSupplier
       ORDER BY createdDate DESC
     `);
 
@@ -37,26 +36,39 @@ async function getSuppliers(res) {
 async function createSupplier(req, res) {
   const { supplierName, supplierType, workFlowID, totalPayment, locationtype } = req.body;
 
-  if (!supplierName || !supplierType || !workFlowID || !totalPayment) {
+  if (!supplierName || !supplierType || !workFlowID) {
     return res.status(400).json({ 
-      error: 'supplierName, supplierType, workFlowID, and totalPayment are required' 
+      error: 'supplierName, supplierType, and workFlowID are required' 
     });
   }
 
   try {
     const pool = await getPool();
 
+    // If supplierName is an ID, get the actual name from tblSupplierNames
+    let actualSupplierName = supplierName;
+    if (!isNaN(supplierName)) {
+      const nameResult = await pool.request()
+        .input('supplierNameID', sql.Int, parseInt(supplierName))
+        .query(`SELECT supplierName FROM tblSupplierNames WHERE supplierNameID = @supplierNameID`);
+      
+      if (nameResult.recordset.length > 0) {
+        actualSupplierName = nameResult.recordset[0].supplierName;
+      } else {
+        return res.status(400).json({ error: 'Supplier name not found' });
+      }
+    }
+
     // Create supplier record
     const insertResult = await pool.request()
-      .input('supplierName', sql.Int, supplierName)
+      .input('supplierName', sql.NVarChar, actualSupplierName)
       .input('supplierType', sql.VarChar(50), supplierType)
       .input('workFlowID', sql.Int, workFlowID)
-      .input('totalPayment', sql.Decimal(10, 2), totalPayment)
-      .input('locationtype', sql.VarChar(50), locationtype || 'Local')
+      .input('totalPayment', sql.Decimal(18, 2), totalPayment || 0)
       .query(`
-        INSERT INTO tblSuppliers (supplierName, supplierType, workFlowID, totalPayment, locationtype, createdDate)
-        OUTPUT INSERTED.supplierID, INSERTED.supplierName, INSERTED.supplierType, INSERTED.workFlowID, INSERTED.totalPayment, INSERTED.locationtype
-        VALUES (@supplierName, @supplierType, @workFlowID, @totalPayment, @locationtype, GETDATE())
+        INSERT INTO tblSupplier (supplierName, supplierType, workFlowID, totalPayment, createdDate)
+        OUTPUT INSERTED.supplierID, INSERTED.supplierName, INSERTED.supplierType, INSERTED.workFlowID, INSERTED.totalPayment
+        VALUES (@supplierName, @supplierType, @workFlowID, @totalPayment, GETDATE())
       `);
 
     if (insertResult.recordset.length === 0) {

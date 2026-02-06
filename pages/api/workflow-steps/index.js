@@ -16,14 +16,14 @@ async function getWorkflowSteps(res) {
     
     const result = await pool.request().query(`
       SELECT 
-        stepID,
+        workflowStepID,
         workFlowID,
         supplierID,
         stepNumber,
-        paymentAmount,
-        dueDate,
-        status,
-        createdDate
+        isActive,
+        createdDate,
+        StepFinished,
+        StepStartDate
       FROM tblWorkflowSteps
       ORDER BY createdDate DESC
     `);
@@ -47,18 +47,6 @@ async function createWorkflowSteps(req, res) {
   try {
     const pool = await getPool();
 
-    // Get supplier total payment
-    const supplierRes = await pool.request()
-      .input('supplierID', sql.Int, supplierID)
-      .query(`SELECT totalPayment FROM tblSuppliers WHERE supplierID = @supplierID`);
-
-    if (supplierRes.recordset.length === 0) {
-      return res.status(400).json({ error: 'Supplier not found' });
-    }
-
-    const totalPayment = supplierRes.recordset[0].totalPayment;
-    const paymentPerStep = totalPayment / numberOfPayments;
-
     // Create payment steps
     const createdSteps = [];
     for (let i = 1; i <= numberOfPayments; i++) {
@@ -66,12 +54,11 @@ async function createWorkflowSteps(req, res) {
         .input('workFlowID', sql.Int, workFlowID)
         .input('supplierID', sql.Int, supplierID)
         .input('stepNumber', sql.Int, i)
-        .input('paymentAmount', sql.Decimal(10, 2), paymentPerStep)
-        .input('status', sql.VarChar(50), 'Pending')
+        .input('isActive', sql.Int, i === 1 ? 1 : 0) // Only first step is active
         .query(`
-          INSERT INTO tblWorkflowSteps (workFlowID, supplierID, stepNumber, paymentAmount, status, createdDate)
-          OUTPUT INSERTED.stepID, INSERTED.workFlowID, INSERTED.supplierID, INSERTED.stepNumber, INSERTED.paymentAmount, INSERTED.status
-          VALUES (@workFlowID, @supplierID, @stepNumber, @paymentAmount, @status, GETDATE())
+          INSERT INTO tblWorkflowSteps (workFlowID, supplierID, stepNumber, isActive, createdDate, StepFinished, StepStartDate)
+          OUTPUT INSERTED.workflowStepID, INSERTED.workFlowID, INSERTED.supplierID, INSERTED.stepNumber, INSERTED.isActive, INSERTED.createdDate, INSERTED.StepFinished, INSERTED.StepStartDate
+          VALUES (@workFlowID, @supplierID, @stepNumber, @isActive, GETDATE(), NULL, NULL)
         `);
 
       if (insertResult.recordset.length > 0) {
