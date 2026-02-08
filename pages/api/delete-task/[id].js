@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const taskInfoResult = await pool.request()
       .input('TaskID', sql.Int, taskId)
       .query(`
-        SELECT DepId, proccessID AS ProcessID, Priority
+        SELECT DepId, proccessID AS ProcessID
         FROM tblTasks
         WHERE TaskID = @TaskID
       `);

@@ -54,51 +54,42 @@ export default async function handler(req, res) {
 
     // Save to history
     try {
-      const taskStepResult = await pool.request()
+      const historyDataResult = await pool.request()
         .input('workFlowHdrId', sql.Int, workFlowHdrId)
-        .query(`SELECT stepNumber FROM tblWorkflowSteps WHERE workFlowID = @workFlowHdrId AND isActive = 1`);
+        .input('taskId', sql.Int, taskId)
+        .query(`
+          SELECT 
+            ws.stepNumber,
+            t.TaskName, t.DepId AS tDepId, t.IsTaskSelected, t.Priority, t.PlannedDate,
+            d.DeptName,
+            wd.TimeStarted
+          FROM tblWorkflowSteps ws
+          CROSS JOIN tblTasks t
+          LEFT JOIN tblDepartments d ON d.DepartmentID = t.DepId
+          LEFT JOIN tblWorkflowDtl wd ON wd.TaskID = t.TaskID AND wd.workFlowHdrId = @workFlowHdrId
+          WHERE ws.workFlowID = @workFlowHdrId AND ws.isActive = 1 AND t.TaskID = @taskId
+        `);
 
-      if (taskStepResult.recordset.length > 0) {
-        const taskStepNumber = taskStepResult.recordset[0].stepNumber;
+      if (historyDataResult.recordset.length > 0) {
+        const h = historyDataResult.recordset[0];
 
-        const taskDetailsResult = await pool.request()
+        await pool.request()
+          .input('workFlowHdrId', sql.Int, workFlowHdrId)
           .input('taskId', sql.Int, taskId)
-          .query(`SELECT t.TaskName, t.DepId, t.IsTaskSelected, t.Priority, t.PlannedDate FROM tblTasks t WHERE t.TaskID = @taskId`);
-
-        if (taskDetailsResult.recordset.length > 0) {
-          const taskDetails = taskDetailsResult.recordset[0];
-
-          const deptResult = await pool.request()
-            .input('depId', sql.Int, taskDetails.DepId)
-            .query(`SELECT DeptName FROM tblDepartments WHERE DepartmentID = @depId`);
-
-          const deptName = deptResult.recordset[0]?.DeptName || 'Unknown';
-
-          const timeStartedResult = await pool.request()
-            .input('taskId', sql.Int, taskId)
-            .input('workFlowHdrId', sql.Int, workFlowHdrId)
-            .query(`SELECT TimeStarted FROM tblWorkflowDtl WHERE TaskID = @taskId AND workFlowHdrId = @workFlowHdrId`);
-
-          const timeStarted = timeStartedResult.recordset[0]?.TimeStarted || null;
-
-          await pool.request()
-            .input('workFlowHdrId', sql.Int, workFlowHdrId)
-            .input('taskId', sql.Int, taskId)
-            .input('stepNumber', sql.Int, taskStepNumber)
-            .input('taskName', sql.NVarChar, taskDetails.TaskName)
-            .input('depId', sql.Int, taskDetails.DepId)
-            .input('deptName', sql.NVarChar, deptName)
-            .input('isTaskSelected', sql.Bit, taskDetails.IsTaskSelected)
-            .input('timeStarted', sql.DateTime2, timeStarted)
-            .input('timeFinished', sql.VarChar(30), finishDateOnly)
-            .input('delayValue', sql.Int, delay)
-            .input('priority', sql.Int, taskDetails.Priority)
-            .input('plannedDate', sql.DateTime2, taskDetails.PlannedDate)
-            .query(`
-              INSERT INTO tblWorkflowTaskHistory (workFlowID, PaymentStep, TaskID, TaskName, DepId, DeptName, IsTaskSelected, TimeStarted, TimeFinished, Delay, Priority, PlannedDate)
-              VALUES (@workFlowHdrId, @stepNumber, @taskId, @taskName, @depId, @deptName, @isTaskSelected, @timeStarted, @timeFinished, @delayValue, @priority, @plannedDate)
-            `);
-        }
+          .input('stepNumber', sql.Int, h.stepNumber)
+          .input('taskName', sql.NVarChar, h.TaskName)
+          .input('depId', sql.Int, h.tDepId)
+          .input('deptName', sql.NVarChar, h.DeptName || 'Unknown')
+          .input('isTaskSelected', sql.Bit, h.IsTaskSelected)
+          .input('timeStarted', sql.DateTime2, h.TimeStarted)
+          .input('timeFinished', sql.VarChar(30), finishDateOnly)
+          .input('delayValue', sql.Int, delay)
+          .input('priority', sql.Int, h.Priority)
+          .input('plannedDate', sql.DateTime2, h.PlannedDate)
+          .query(`
+            INSERT INTO tblWorkflowTaskHistory (workFlowID, PaymentStep, TaskID, TaskName, DepId, DeptName, IsTaskSelected, TimeStarted, TimeFinished, Delay, Priority, PlannedDate)
+            VALUES (@workFlowHdrId, @stepNumber, @taskId, @taskName, @depId, @deptName, @isTaskSelected, @timeStarted, @timeFinished, @delayValue, @priority, @plannedDate)
+          `);
       }
     } catch (historyError) {
       console.error('Error saving task to history:', historyError.message);
@@ -138,7 +129,7 @@ export default async function handler(req, res) {
       .input('depId', sql.Int, DepId)
       .input('workFlowHdrId', sql.Int, workFlowHdrId)
       .query(`
-        SELECT TOP 1 t.TaskID, t.DaysRequired, t.Priority
+        SELECT TOP 1 t.TaskID, t.DaysRequired
         FROM tblTasks t
         JOIN tblWorkflowDtl w ON t.TaskID = w.TaskID
         WHERE t.DepId = @depId
@@ -167,11 +158,7 @@ export default async function handler(req, res) {
       await pool.request()
         .input('plannedDate', sql.VarChar, nextPlannedStr)
         .input('nextTaskId', sql.Int, nextTaskId)
-        .query(`UPDATE tblTasks SET PlannedDate = CAST(@plannedDate AS DATE) WHERE TaskID = @nextTaskId`);
-
-      await pool.request()
-        .input('nextTaskId', sql.Int, nextTaskId)
-        .query(`UPDATE tblTasks SET IsTaskSelected = 1 WHERE TaskID = @nextTaskId`);
+        .query(`UPDATE tblTasks SET PlannedDate = CAST(@plannedDate AS DATE), IsTaskSelected = 1 WHERE TaskID = @nextTaskId`);
     }
 
     // Check if all tasks in department finished -> move to next department

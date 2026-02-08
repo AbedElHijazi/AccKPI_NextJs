@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
       const updatedTask = await pool.request()
         .input('taskId', sql.Int, taskId)
-        .query(`SELECT * FROM tblTasks WHERE TaskID = @taskId`);
+        .query(`SELECT TaskID, TaskName, IsTaskSelected, PlannedDate, DepId, Priority, DaysRequired, IsFixed, WorkFlowHdrID FROM tblTasks WHERE TaskID = @taskId`);
 
       updatedTasks.push(updatedTask.recordset[0]);
     }

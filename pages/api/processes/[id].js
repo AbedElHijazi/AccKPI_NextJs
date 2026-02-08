@@ -46,7 +46,7 @@ export default async function handler(req, res) {
           WHERE TaskID IN (
             SELECT TaskID FROM tblTasks
             WHERE WorkFlowHdrID IN (
-              SELECT workFlowHdrId FROM tblWorkflowHdr WHERE processID = @ProcessID
+              SELECT workFlowID FROM tblWorkflowHdr WHERE processID = @ProcessID
             )
             OR proccessID = @ProcessID
           )
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
         .query(`
           DELETE FROM tblTasks
           WHERE WorkFlowHdrID IN (
-            SELECT workFlowHdrId FROM tblWorkflowHdr WHERE processID = @ProcessID
+            SELECT workFlowID FROM tblWorkflowHdr WHERE processID = @ProcessID
           )
           OR proccessID = @ProcessID
         `);
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
         .query(`
           DELETE FROM tblWorkflowDtl
           WHERE workFlowHdrId IN (
-            SELECT workFlowHdrId FROM tblWorkflowHdr WHERE processID = @ProcessID
+            SELECT workFlowID FROM tblWorkflowHdr WHERE processID = @ProcessID
           )
         `);
 
