@@ -1,182 +1,181 @@
-# AccKPI - Next.js Version
+# AccKPI - Next.js
 
-This is a converted version of the AccKPI application from Express.js to Next.js.
+Workflow & Task Management System built with Next.js (Pages Router), MSSQL, and iron-session.
 
-## 📁 Project Structure
+## Prerequisites
 
-```
-accNextjs/
-├── pages/
-│   ├── api/              # API routes (Next.js API)
-│   │   ├── auth/
-│   │   │   ├── login.js
-│   │   │   └── logout.js
-│   │   ├── packages.js
-│   │   ├── departments.js
-│   │   ├── processes.js
-│   │   └── projects.js
-│   ├── index.js          # Home page
-│   ├── login.js          # Login page
-│   ├── _app.js           # App wrapper
-│   └── _document.js      # HTML document
-├── lib/
-│   ├── db.js             # Database connection
-│   ├── helpers.js        # Database helper functions
-│   └── auth.js           # Authentication middleware
-├── public/
-│   ├── styles/           # CSS files
-│   ├── js/               # JavaScript files
-│   └── images/           # Image assets
-├── components/           # React components
-├── package.json
-├── next.config.js
-├── .env.local           # Environment variables
-└── README.md
+### Node.js & pnpm
+
+This project uses **pnpm** as its package manager. We use pnpm because:
+- **Faster** — installs packages in parallel and caches them globally
+- **Disk efficient** — uses a content-addressable store, so shared dependencies aren't duplicated
+- **Strict** — prevents phantom dependencies (packages you use but didn't declare)
+
+**Install Node.js:**
+
+1. Go to [https://nodejs.org](https://nodejs.org)
+2. Download the **LTS** (Long Term Support) version
+3. Run the installer
+4. Verify: `node --version` (should show v18+ or v20+)
+
+**Install pnpm:**
+
+```bash
+npm install -g pnpm
 ```
 
-## 🚀 Getting Started
+Verify: `pnpm --version`
 
-### 1. Install Dependencies
+> **Why not npm?** npm creates flat `node_modules` and duplicates shared packages. pnpm uses symlinks and a global store, saving disk space and install time — especially noticeable in larger projects.
+
+## Getting Started
 
 ```bash
 cd accNextjs
-npm install
+pnpm install
+pnpm dev
 ```
 
-### 2. Configure Environment Variables
+App runs at `http://localhost:3000`.
 
-Edit `.env.local` with your database and API credentials:
+## Environment Variables
+
+Create a `.env.local` file:
 
 ```env
 DB_USER=sa
 DB_PASSWORD=sa
 DB_SERVER=10.10.2.123
 DB_DATABASE=AccDBF
-PORT=3000
-HOST=0.0.0.0
-API_RESEND=your_resend_api_key_here
-SESSION_SECRET=your_session_secret_here_change_in_production
+SESSION_SECRET=your-secret-key-min-32-characters-long!
 ```
 
-### 3. Run Development Server
+## Project Structure
 
-```bash
-npm run dev
+```
+accNextjs/
+├── pages/
+│   ├── api/                    # API routes
+│   │   ├── auth/
+│   │   │   ├── login.js        # POST - user login
+│   │   │   ├── logout.js       # GET  - destroy session & redirect
+│   │   │   ├── me.js           # GET  - current user info
+│   │   │   └── session.js      # Session management
+│   │   ├── tasks/
+│   │   │   ├── index.js        # GET/POST - list & create tasks
+│   │   │   ├── [id].js         # GET/PUT/DELETE - single task CRUD
+│   │   │   ├── start.js        # POST - start a task (set TimeStarted)
+│   │   │   ├── finish.js       # POST - finish a task (delay calc, auto-advance)
+│   │   │   ├── save-updates.js # PUT  - update days/delay reason
+│   │   │   ├── history.js      # GET  - task history per workflow
+│   │   │   └── assign.js       # POST - assign task to user
+│   │   ├── workflows/
+│   │   │   ├── index.js        # GET/POST - list & create workflows
+│   │   │   ├── add.js          # POST - create workflow (with validation)
+│   │   │   ├── [id].js         # GET  - single workflow details
+│   │   │   └── [id]/tasks.js   # GET  - tasks for a workflow
+│   │   ├── workflow-steps/
+│   │   │   ├── index.js        # GET  - list workflow steps
+│   │   │   └── [id].js         # GET/PUT - get/update payment steps
+│   │   ├── processes.js        # GET  - list processes
+│   │   ├── processes/[id].js   # GET  - single process
+│   │   ├── projects.js         # GET  - list projects
+│   │   ├── packages.js         # GET  - list packages
+│   │   ├── departments.js      # GET  - list departments
+│   │   ├── suppliers.js        # GET  - list suppliers
+│   │   ├── supplier-names.js   # GET  - supplier name lookup
+│   │   ├── users/
+│   │   │   ├── index.js        # GET  - list users
+│   │   │   └── [id].js         # GET/PUT/DELETE - single user
+│   │   ├── dashboard.js        # GET  - dashboard stats
+│   │   └── workFlowDashData.js # GET  - workflow dashboard data
+│   ├── login.js                # Login page
+│   ├── homepage.js             # Homepage (after login)
+│   ├── adminpage.js            # Admin dashboard
+│   ├── workflowdashboard.js    # Workflow dashboard (main)
+│   ├── userpage/[hdrId].js     # Task management page (per workflow)
+│   ├── add-workflow.js         # Create new workflow form
+│   ├── add-task.js             # Add/edit tasks for a process
+│   ├── processes/index.js      # Process listing
+│   ├── _app.js                 # App wrapper
+│   └── _document.js            # HTML document
+├── lib/
+│   ├── db.js                   # MSSQL connection pool (singleton)
+│   ├── session.js              # iron-session config
+│   ├── auth.js                 # Auth middleware
+│   ├── helpers.js              # DB helper functions (getWorkflowTasks, etc.)
+│   ├── hooks.js                # React hooks (useAuth, useAdminAuth)
+│   └── utils.js                # Utility functions
+├── components/
+│   └── Layout.js               # Shared layout component
+└── public/
+    ├── css/                    # FontAwesome, Bootstrap
+    ├── styles/                 # Custom stylesheets
+    ├── fonts/                  # Inter font family
+    ├── images/                 # Static images
+    └── js/                     # Legacy JS files
 ```
 
-The application will be available at `http://localhost:3000`
-
-### 4. Build for Production
-
-```bash
-npm run build
-npm start
-```
-
-## 🔄 Migration Notes
-
-### From Express to Next.js
-
-1. **Database Connection**: Moved from `index.js` to `lib/db.js` with connection pooling
-2. **Helper Functions**: Converted from `databaseHelpers.js` to `lib/helpers.js`
-3. **Routes**: Express routes converted to Next.js API routes in `pages/api/`
-4. **Views**: EJS templates need to be converted to React components
-5. **Middleware**: Session management needs to be configured in `pages/api/` routes
-6. **Authentication**: Implemented in middleware pattern suitable for Next.js
-
-## 📋 API Endpoints
+## Key Features
 
 ### Authentication
-- `POST /api/auth/login` - User login
-- `GET /api/auth/logout` - User logout
+- **iron-session** cookie-based sessions (1-week TTL)
+- `useAuth()` hook for client-side auth checks
+- Admin-only routes via `useAdminAuth()`
 
-### Data Endpoints
-- `GET /api/packages` - Get all packages
-- `GET /api/departments` - Get all departments
-- `GET /api/processes` - Get all processes
-- `GET /api/projects` - Get all projects
+### Workflow Management
+- Create workflows linked to a process, project, and package
+- Template tasks are **copied** (not linked) when creating a workflow
+- First task auto-selected by `StepOrder` from `tblProcessDepartment`
 
-## ⚙️ Configuration
+### Task Lifecycle
+1. **Start** - Sets `TimeStarted` in `tblWorkflowDtl`, sets `PlannedDate` if missing
+2. **Finish** - Sets `TimeFinished`, calculates delay, saves to history
+3. **Auto-advance** - Next task in same department selected, planned date calculated
+4. **Department advance** - When all tasks in a dept finish, next dept's first task is selected
 
-### Next.js Config (`next.config.js`)
-- Environment variables are exposed to client side
-- Optimize images and bundle size
-- SWC minification enabled
+### Multi-Payment Workflows
+- Workflows can have multiple payment steps (`tblWorkflowSteps`)
+- **Payment 1**: All departments including Procurement (DepId=8) and Contract (DepId=9)
+- **Payment 2+**: Procurement & Contract are excluded (`MovePassOnce` departments)
+  - Their `tblWorkflowDtl` records are **deleted** on advancement
+  - Tasks reset: `TimeStarted`, `TimeFinished`, `Delay`, `PlannedDate` → NULL
+  - First non-Proc/Contract task auto-selected
+- **Set Start Date**: Available on active payment (2+), sets `StepStartDate` and selects first task
+- **Task History**: Shows completed payment data with collapsible payment/department groups
 
-### Database Configuration
-- Support for both remote SQL Server and localhost fallback
-- Connection pooling with MSSQL
-- Error handling and retry logic
+### Task Page (`/userpage/[hdrId]`)
+- Progress ring with completion percentage
+- Status filter cards (Pending, In Progress, Completed, Overdue)
+- Department timeline
+- Department-grouped task tables with Start/Finish buttons (own dept only)
+- Editable days required and delay reason modal
+- CSV export
+- Payment steps section (top of page)
+- Task history with payment toggles (multi-payment only)
 
-## 🔐 Security
+## Database
 
-- Session-based authentication
-- Rate limiting on login attempts (configure in `pages/api/auth/login.js`)
-- SQL injection prevention through parameterized queries
-- HTTPS configuration ready (certificates in root)
+**MSSQL Server** with key tables:
 
-## 📝 TODO - Complete Migration Tasks
+| Table | Purpose |
+|-------|---------|
+| `tblTasks` | Task definitions (template + workflow copies) |
+| `tblWorkflowHdr` | Workflow header (process, project, package, dates) |
+| `tblWorkflowDtl` | Workflow task state (start/finish times, delay) |
+| `tblWorkflowSteps` | Payment steps per workflow |
+| `tblWorkflowTaskHistory` | Historical task data per payment step |
+| `tblProcess` | Process definitions |
+| `tblProcessDepartment` | Department order within a process (StepOrder) |
+| `tblDepartments` | Department list (MovePassOnce flag for Proc/Contract) |
+| `tblProject` | Project definitions |
+| `tblPackages` | Package definitions |
+| `tblUsers` | User accounts |
 
-### Still Need to Convert:
-1. **Pages/Views** - Convert remaining EJS files to React components:
-   - addPackageForm.ejs
-   - adduser.ejs
-   - addworkflow.ejs
-   - adminpage.ejs
-   - assignWorkflow.ejs
-   - checkuser.ejs
-   - editprocess.ejs
-   - edittasks.ejs
-   - homepage.ejs
-   - packageform.ejs
-   - process.ejs
-   - project.ejs
-   - selectTask.ejs
-   - signup.ejs
-   - subpackage.ejs
-   - task.ejs
-   - taskhistory.ejs
-   - userpage.ejs
-   - workflowdashboard.ejs
+## Scripts
 
-2. **API Routes** - Convert remaining Express routes:
-   - Workflow management routes
-   - Task management routes
-   - User management routes
-   - Package management routes
-   - Process management routes
-   - Department management routes
-   - Report generation routes
-
-3. **Static Assets** - Copy and optimize:
-   - CSS files from `public/styles/`
-   - JavaScript files from `public/js/`
-   - Font Awesome and Bootstrap assets
-   - Image assets
-
-4. **Session Management** - Implement:
-   - Express-session replacement
-   - Cookie handling for Next.js
-   - Session persistence
-
-5. **Form Validation** - Update:
-   - Express-validator to client-side validation (can use existing library)
-   - Custom validation in API routes
-
-## 🛠️ Development Tips
-
-- Use `npm run dev` for hot reload during development
-- Check console logs for database connection status
-- API routes are located in `pages/api/` directory
-- Pages are located in `pages/` directory
-- No need for manual routing - Next.js handles it automatically
-
-## 📚 Resources
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [MSSQL Documentation](https://github.com/tediousjs/node-mssql)
-- [React Documentation](https://react.dev)
-
-## 📝 License
-
-ISC
+```bash
+pnpm dev        # Development server (localhost:3000)
+pnpm build      # Production build
+pnpm start      # Start production server
+```
