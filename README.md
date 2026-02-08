@@ -157,7 +157,6 @@ accNextjs/
 
 ### Workflow Management
 - Create workflows linked to a process, project, and package
-- Template tasks are **copied** (not linked) when creating a workflow
 - First task auto-selected by `StepOrder` from `tblProcessDepartment`
 
 ### Task Lifecycle
