@@ -21,6 +21,12 @@ export default function Home() {
       return;
     }
 
+    // If authenticated, redirect to appropriate dashboard
+    if (!authLoading && user) {
+      router.push(user.usrAdmin ? '/adminpage' : '/workflowdashboard');
+      return;
+    }
+
     // Load dashboard data
     async function loadData() {
       try {

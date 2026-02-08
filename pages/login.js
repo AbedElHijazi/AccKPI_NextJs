@@ -1,8 +1,10 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/hooks';
 
 export default function Login() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [project, setProject] = useState('1');
@@ -11,6 +13,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // If already logged in, redirect to appropriate dashboard
+    if (!authLoading && user) {
+      router.push(user.usrAdmin ? '/adminpage' : '/workflowdashboard');
+      return;
+    }
+
     // Load projects
     async function loadProjects() {
       try {
@@ -29,8 +37,11 @@ export default function Login() {
         console.error('Failed to load projects:', err);
       }
     }
-    loadProjects();
-  }, []);
+    
+    if (!user && !authLoading) {
+      loadProjects();
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

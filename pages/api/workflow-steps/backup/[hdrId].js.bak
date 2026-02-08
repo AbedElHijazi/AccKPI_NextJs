@@ -1,0 +1,53 @@
+import { getPool } from '@/lib/db';
+import sql from 'mssql';
+
+export default async function handler(req, res) {
+  // Redirect hdrId to id parameter
+  const { hdrId } = req.query;
+  req.query.id = hdrId;
+  
+  return await getWorkflowStepsById(hdrId, res);
+}
+
+async function getWorkflowStepsById(workFlowID, res) {
+  try {
+    if (!workFlowID || isNaN(workFlowID)) {
+      return res.status(400).json({ error: 'Invalid workflow ID' });
+    }
+
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('workFlowID', sql.Int, parseInt(workFlowID))
+      .query(`
+        SELECT 
+          ws.workflowStepID,
+          ws.workFlowID,
+          ws.supplierID,
+          ws.stepNumber,
+          ws.isActive,
+          ws.createdDate,
+          ws.StepFinished,
+          ws.StepStartDate,
+          s.SupplierName,
+          sn.SupplierPaymentMethod,
+          sn.SupplierContactInfo
+        FROM tblWorkflowSteps ws
+        LEFT JOIN tblSupplier s ON ws.supplierID = s.SupplierID
+        LEFT JOIN tblSupplierNames sn ON s.SupplierID = sn.SupplierID
+        WHERE ws.workFlowID = @workFlowID
+        ORDER BY ws.stepNumber ASC, ws.workflowStepID ASC
+      `);
+
+    console.log('[workflow-steps] Retrieved', result.recordset.length, 'steps for workflow', workFlowID);
+    return res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error('[workflow-steps API] Error fetching workflow steps:', error.message);
+    return res.status(500).json({ 
+      error: 'Failed to fetch workflow steps',
+      details: error.message
+    });
+  }
+}
+  }
+}

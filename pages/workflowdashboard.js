@@ -48,16 +48,37 @@ export default function WorkflowDashboard() {
 
   const checkAuthAndLoadData = async () => {
     try {
-      // Check user session (you may need to adjust this based on your auth setup)
+      // Check user session
+      console.log('[Dashboard] Checking authentication...');
       const sessionRes = await fetch('/api/auth/session');
-      if (sessionRes.ok) {
-        const session = await sessionRes.json();
-        setIsAdmin(session.usrAdmin || false);
-        setIsSpecialUser(session.isSpecialUser || false);
-        setProjectID(session.projectID || null);
+      
+      if (!sessionRes.ok) {
+        console.log('[Dashboard] Session check returned:', sessionRes.status);
+        router.push('/login');
+        return;
       }
+      
+      const session = await sessionRes.json();
+      console.log('[Dashboard] Session data:', session);
+      
+      if (!session.authenticated) {
+        console.log('[Dashboard] Not authenticated, redirecting to login');
+        router.push('/login');
+        return;
+      }
+      
+      setIsAdmin(session.usrAdmin || false);
+      setIsSpecialUser(session.isSpecialUser || false);
+      setProjectID(session.projectID || null);
+      
+      console.log('[Dashboard] User authenticated:', { 
+        isAdmin: session.usrAdmin, 
+        isSpecialUser: session.isSpecialUser, 
+        projectID: session.projectID 
+      });
 
       // Load form data
+      console.log('[Dashboard] Loading form data...');
       await Promise.all([
         loadProcesses(),
         loadProjects(),
@@ -66,7 +87,7 @@ export default function WorkflowDashboard() {
       ]);
     } catch (err) {
       console.error('Failed to load data:', err);
-      showToast('Failed to load data', 'error');
+      showToast('Failed to load data: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -116,12 +137,20 @@ export default function WorkflowDashboard() {
   const loadWorkflowData = async () => {
     try {
       setLoading(true);
+      console.log('[Dashboard] Loading workflows from /api/workFlowDashData...');
+      
       const res = await fetch(`/api/workFlowDashData?t=${new Date().getTime()}`);
+      
+      if (res.status === 401) {
+        console.log('[Dashboard] Unauthorized (401), redirecting to login');
+        router.push('/login');
+        return;
+      }
+      
       if (res.ok) {
         let workflows = await res.json();
-        
-        // Filter to only Pending and Completed
-        workflows = workflows.filter(w => w.Status === 'Pending' || w.Status === 'Completed');
+        console.log('[Dashboard] Received workflows from API:', workflows.length, 'total');
+        console.log('[Dashboard] Workflow data:', workflows);
         
         // Fetch payment steps for each workflow
         for (let workflow of workflows) {
@@ -129,21 +158,30 @@ export default function WorkflowDashboard() {
             const paymentRes = await fetch(`/api/workflow-steps/${workflow.HdrID}`);
             if (paymentRes.ok) {
               workflow.paymentSteps = await paymentRes.json();
+              console.log(`[Dashboard] Payment steps for workflow ${workflow.HdrID}:`, workflow.paymentSteps);
             } else {
+              const errorData = await paymentRes.text();
+              console.error(`[Dashboard] Failed to fetch payment steps (${paymentRes.status}):`, errorData);
               workflow.paymentSteps = [];
             }
           } catch (err) {
-            console.error(`Failed to fetch payment steps for ${workflow.HdrID}:`, err);
+            console.error(`[Dashboard] Failed to fetch payment steps for ${workflow.HdrID}:`, err);
             workflow.paymentSteps = [];
           }
         }
         
+        console.log('[Dashboard] Setting workflows to state:', workflows.length, 'workflows');
         setAllWorkflows(workflows);
         setFilteredWorkflows(workflows);
+        showToast(`Loaded ${workflows.length} workflows`, 'success');
+      } else {
+        const errorText = await res.text();
+        console.error('Failed to load workflows:', res.status, res.statusText, errorText);
+        showToast('Failed to load workflows: ' + res.statusText, 'error');
       }
     } catch (err) {
       console.error('Failed to load workflows:', err);
-      showToast('Failed to load workflows', 'error');
+      showToast('Failed to load workflows: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -506,17 +544,31 @@ export default function WorkflowDashboard() {
           <div className="table-responsive">
             {filteredWorkflows.length === 0 ? (
               <div className="no-results">
-                <p>No workflows match your search criteria</p>
-                <button
-                  className="btn btn-outline"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setProcessFilter('');
-                    setStatusFilter('');
-                  }}
-                >
-                  Reset Filters
-                </button>
+                <p>
+                  {allWorkflows.length === 0
+                    ? 'No workflows found for your project. Create one to get started!'
+                    : 'No workflows match your search criteria'}
+                </p>
+                {allWorkflows.length === 0 && isSpecialUser && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => router.push('/add-workflow')}
+                  >
+                    Create First Workflow
+                  </button>
+                )}
+                {filteredWorkflows.length === 0 && allWorkflows.length > 0 && (
+                  <button
+                    className="btn btn-outline"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setProcessFilter('');
+                      setStatusFilter('');
+                    }}
+                  >
+                    Reset Filters
+                  </button>
+                )}
               </div>
             ) : (
               <>
