@@ -133,6 +133,19 @@ export default async function handler(req, res) {
       const [year, month, day] = startDate.split('-').map(Number);
       const baseDate = new Date(Date.UTC(year, month - 1, day));
       let taskCounter = 0;
+
+      // Determine which task should be auto-selected (first by StepOrder, then Priority, then TaskID)
+      // We need StepOrder from tblProcessDepartment
+      const stepOrderRes = await pool.request()
+        .input('processID', sql.Int, parseInt(processID))
+        .query(`
+          SELECT t.TaskID, pd.StepOrder, t.Priority
+          FROM tblTasks t
+          INNER JOIN tblProcessDepartment pd ON pd.DepartmentID = t.DepId AND pd.ProcessID = t.proccessID
+          WHERE t.proccessID = @processID AND t.WorkFlowHdrID IS NULL
+          ORDER BY pd.StepOrder ASC, t.Priority ASC, t.TaskID ASC
+        `);
+      const firstTaskOriginalID = stepOrderRes.recordset.length > 0 ? stepOrderRes.recordset[0].TaskID : null;
       
       console.log(`\n📦 Creating ${tasks.recordset.length} task copies for workflow ${newWorkflowID}`);
       console.log(`  Base Date: ${baseDate.toISOString()}`);
@@ -160,13 +173,13 @@ export default async function handler(req, res) {
           const insertTaskResult = await pool.request()
             .input('taskName', sql.VarChar, task.TaskName || '')
             .input('taskPlanned', sql.VarChar, task.TaskPlanned || '')
-            .input('isTaskSelected', sql.Int, task.IsTaskSelected ? 1 : 0)
-            .input('plannedDate', sql.Date, plannedDateStr)
+            .input('isTaskSelected', sql.Int, task.TaskID === firstTaskOriginalID ? 1 : 0)
+            .input('plannedDate', sql.Date, task.TaskID === firstTaskOriginalID ? (plannedDateStr || startDate) : plannedDateStr)
             .input('depId', sql.Int, task.DepId)
             .input('priority', sql.Int, task.Priority || 0)
             .input('predecessorID', sql.Int, task.PredecessorID || null)
             .input('daysRequired', sql.Int, task.DaysRequired || 0)
-            .input('linkTasks', sql.VarChar, task.linkTasks || '')
+            .input('linkTasks', sql.Int, null)
             .input('processID', sql.Int, parseInt(processID))
             .input('workflowID', sql.Int, newWorkflowID)
             .input('isFixed', sql.Int, task.IsFixed ? 1 : 0)

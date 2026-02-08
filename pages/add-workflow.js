@@ -176,7 +176,7 @@ export default function AddWorkflow() {
       const projectID = selectedProjectID ? parseInt(selectedProjectID) : parseInt(formData.projectID);
 
       // Step 1: Create workflow with all basic data
-      const workflowRes = await fetch('/api/workflows', {
+      const workflowRes = await fetch('/api/workflows/add', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

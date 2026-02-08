@@ -405,7 +405,10 @@ export default function WorkflowUserPage() {
       return <span className="status-badge status-inprogress"><i className="fas fa-spinner" /> In Progress</span>;
     }
     if (!task.TimeFinished && task.IsTaskSelected && !task.PlannedDate) {
-      return <span className="status-badge status-waiting"><i className="fas fa-calendar" /> Waiting for Payment {task.PaymentStep} start date</span>;
+      if (task.PaymentStep > 0) {
+        return <span className="status-badge status-waiting"><i className="fas fa-calendar" /> Waiting for Payment {task.PaymentStep} start date</span>;
+      }
+      return <span className="status-badge status-pending"><i className="fas fa-clock" /> Pending</span>;
     }
     if (!task.TimeFinished && task.IsTaskSelected) {
       return <span className="status-badge status-pending"><i className="fas fa-clock" /> Pending</span>;
