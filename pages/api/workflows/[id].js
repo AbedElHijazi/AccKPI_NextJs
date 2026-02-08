@@ -1,5 +1,6 @@
 import { getPool } from '@/lib/db';
 import { getWorkflowTasks } from '@/lib/helpers';
+import sql from 'mssql';
 
 export default async function handler(req, res) {
   const { id } = req.query;
@@ -24,7 +25,9 @@ async function getWorkflowDetail(workflowId, res) {
     const pool = await getPool();
 
     // Get workflow header
-    const hdrResult = await pool.request().query(`
+    const hdrResult = await pool.request()
+      .input('id', sql.Int, workflowId)
+      .query(`
       SELECT 
         hdr.WorkFlowID,
         hdr.processID,
@@ -41,19 +44,25 @@ async function getWorkflowDetail(workflowId, res) {
       LEFT JOIN tblProject pj ON hdr.projectID = pj.ProjectID
       LEFT JOIN tblPackages pk ON hdr.packageID = pk.PkgeId
       WHERE hdr.WorkFlowID = @id
-    `, { id: workflowId });
+    `);
 
     if (hdrResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
 
-    // Get workflow tasks
-    const tasks = await getWorkflowTasks(workflowId);
+    // Transform workflow data to match frontend expectations
+    const workflow = hdrResult.recordset[0];
+    const transformedWorkflow = {
+      HdrID: workflow.WorkFlowID,
+      ProcessName: workflow.ProcessName,
+      ProjectName: workflow.ProjectName,
+      PackageName: workflow.PkgeName,
+      startDate: workflow.startDate,
+      Status: workflow.status,
+      createdDate: workflow.createdDate
+    };
 
-    return res.status(200).json({
-      workflow: hdrResult.recordset[0],
-      tasks: tasks
-    });
+    return res.status(200).json(transformedWorkflow);
   } catch (error) {
     console.error('Error fetching workflow:', error);
     return res.status(500).json({ error: 'Failed to fetch workflow' });

@@ -16,9 +16,9 @@ export default function Layout({ children, user }) {
   };
 
   return (
-    <div className="d-flex">
-      {/* Sidebar Navigation */}
-      <nav className="navbar navbar-dark bg-dark navbar-expand-lg w-100">
+    <div className="layout-container">
+      {/* Top Navigation */}
+      <nav className="navbar navbar-dark bg-dark navbar-expand-lg">
         <div className="container-fluid">
           <Link className="navbar-brand" href="/">
             📊 AccKPI
@@ -105,9 +105,22 @@ export default function Layout({ children, user }) {
       </nav>
 
       {/* Main Content */}
-      <main className="w-100">
+      <main className="layout-main">
         {children}
       </main>
+
+      <style jsx>{`
+        .layout-container {
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+        }
+
+        .layout-main {
+          flex: 1;
+          width: 100%;
+        }
+      `}</style>
     </div>
   );
 }
