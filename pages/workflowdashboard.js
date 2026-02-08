@@ -98,6 +98,7 @@ export default function WorkflowDashboard() {
       const res = await fetch('/api/processes');
       if (res.ok) {
         const data = await res.json();
+        console.log('[Dashboard] Processes loaded:', data);
         setProcesses(data);
       }
     } catch (err) {
@@ -171,6 +172,7 @@ export default function WorkflowDashboard() {
         }
         
         console.log('[Dashboard] Setting workflows to state:', workflows.length, 'workflows');
+        console.log('[Dashboard] Sample workflow data:', workflows.slice(0, 2).map(w => ({ HdrID: w.HdrID, ProcessName: w.ProcessName, Status: w.Status })));
         setAllWorkflows(workflows);
         setFilteredWorkflows(workflows);
         showToast(`Loaded ${workflows.length} workflows`, 'success');
@@ -253,20 +255,35 @@ export default function WorkflowDashboard() {
   }, [searchQuery, processFilter, statusFilter, allWorkflows]);
 
   const applyFilters = () => {
+    console.log('[ApplyFilters] Starting filter with:', { processFilter, statusFilter, searchQuery });
+    console.log('[ApplyFilters] Total workflows:', allWorkflows.length);
+    console.log('[ApplyFilters] Sample workflow ProcessNames:', allWorkflows.slice(0, 3).map(w => w.ProcessName));
+    
     let filtered = allWorkflows.filter(workflow => {
+      const displayStatus = getDisplayStatus(workflow);
+      
       const matchesSearch = !searchQuery || 
         workflow.HdrID?.toString().includes(searchQuery) ||
         workflow.ProcessName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         workflow.PackageName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         workflow.ProjectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        workflow.Status?.toLowerCase().includes(searchQuery.toLowerCase());
+        displayStatus?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesProcess = !processFilter || workflow.ProcessName === processFilter;
-      const matchesStatus = !statusFilter || workflow.Status === statusFilter;
+      // Trim both sides and do case-insensitive comparison for process filter
+      const workflowProcess = (workflow.ProcessName || '').trim();
+      const selectedProcess = (processFilter || '').trim();
+      const matchesProcess = !selectedProcess || workflowProcess.toLowerCase() === selectedProcess.toLowerCase();
+      
+      const matchesStatus = !statusFilter || displayStatus === statusFilter;
+
+      if (processFilter && !matchesProcess) {
+        console.log(`[Filter] NOT matching - Workflow: "${workflowProcess}" (${workflow.ProcessName}), Filter: "${selectedProcess}", Status: "${displayStatus}"`);
+      }
 
       return matchesSearch && matchesProcess && matchesStatus;
     });
 
+    console.log(`[Filter] Result: ${filtered.length}/${allWorkflows.length} workflows match (Process: "${processFilter}", Status: "${statusFilter}")`);
     setFilteredWorkflows(filtered);
     setCurrentPage(1);
   };
@@ -323,19 +340,26 @@ export default function WorkflowDashboard() {
   };
 
   const getDisplayStatus = (workflow) => {
+    // If no completion date, show Pending
+    if (!workflow.completionDate) {
+      return 'Pending';
+    }
+    
+    // If has payment steps, check if all are completed
     if (workflow.paymentSteps && Array.isArray(workflow.paymentSteps) && workflow.paymentSteps.length > 0) {
       const completed = workflow.paymentSteps.filter(s => s.StepFinished).length;
       if (completed === workflow.paymentSteps.length) {
         return 'Completed';
       }
     }
-    return workflow.Status;
+    
+    return workflow.Status || 'Pending';
   };
 
   const calculateStats = () => {
     const total = allWorkflows.length;
-    const completed = allWorkflows.filter(w => w.Status === 'Completed').length;
-    const pending = allWorkflows.filter(w => w.Status === 'Pending').length;
+    const completed = allWorkflows.filter(w => getDisplayStatus(w) === 'Completed').length;
+    const pending = allWorkflows.filter(w => getDisplayStatus(w) === 'Pending').length;
     const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
     return { total, completed, pending, rate };
   };
@@ -519,6 +543,17 @@ export default function WorkflowDashboard() {
           {/* Filters */}
           <div className="filters">
             <div className="filter-group">
+              <label>Search</label>
+              <input
+                type="text"
+                placeholder="Search by ID, Process, Package, Project..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="search-input"
+              />
+            </div>
+
+            <div className="filter-group">
               <label>Process</label>
               <select value={processFilter} onChange={e => setProcessFilter(e.target.value)}>
                 <option key="default" value="">All Processes</option>
@@ -537,6 +572,19 @@ export default function WorkflowDashboard() {
                 <option value="Pending">Pending</option>
                 <option value="Completed">Completed</option>
               </select>
+            </div>
+
+            <div className="filter-group filter-buttons">
+              <button
+                className="btn btn-outline"
+                onClick={() => {
+                  setSearchQuery('');
+                  setProcessFilter('');
+                  setStatusFilter('');
+                }}
+              >
+                Reset Filters
+              </button>
             </div>
           </div>
 
@@ -923,6 +971,7 @@ export default function WorkflowDashboard() {
           padding: 1.5rem;
           border-bottom: 1px solid #e5e7eb;
           flex-wrap: wrap;
+          align-items: flex-end;
         }
 
         .filter-group {
@@ -930,14 +979,48 @@ export default function WorkflowDashboard() {
           flex-direction: column;
           gap: 0.5rem;
           min-width: 150px;
+          flex: 1;
+          min-width: 200px;
         }
 
         .filter-group label {
           font-size: 0.8125rem;
+          font-weight: 500;
+          color: #6b7280;
         }
 
-        .filter-group select {
-          min-width: 150px;
+        .filter-group select,
+        .search-input {
+          padding: 0.5rem 0.75rem;
+          border: 1px solid #d1d5db;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          font-family: inherit;
+        }
+
+        .search-input {
+          width: 100%;
+        }
+
+        .search-input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .filter-group select:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .filter-group.filter-buttons {
+          justify-content: flex-end;
+          min-width: auto;
+        }
+
+        .filter-group.filter-buttons .btn {
+          margin-top: 0.25rem;
         }
 
         .table-responsive {
