@@ -179,3 +179,21 @@ pnpm dev        # Development server (localhost:3000)
 pnpm build      # Production build
 pnpm start      # Start production server
 ```
+
+## Performance
+
+### Database Indexes
+Run `migrations/add_performance_indexes.sql` on the database (one-time). Creates 11 indexes covering:
+- `tblTasks` — by `WorkFlowHdrID`, `DepId`, `proccessID`, `linkTasks`
+- `tblWorkflowDtl` — by `workFlowHdrId`, `TaskID`
+- `tblWorkflowHdr` — by `processID`, `projectID`
+- `tblWorkflowSteps` — by `workFlowID + isActive`
+- `tblWorkflowTaskHistory` — by `workFlowID`
+- `tblProcessDepartment` — by `ProcessID + DepartmentID`
+- `tblUsers` — by `usrEmail`
+
+### In-Memory Cache
+Lookup tables (departments, projects, packages, supplier names) are cached for 5 minutes to reduce database load on repeated page loads.
+
+### Combined Queries
+Sequential queries in the task finish handler are combined into single JOIN queries to reduce round-trips to the database.
