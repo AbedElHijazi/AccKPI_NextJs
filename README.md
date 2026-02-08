@@ -116,6 +116,38 @@ accNextjs/
     └── js/                     # Legacy JS files
 ```
 
+## Why Next.js (Migrated from Express/EJS)
+
+### Architecture
+| Area | Express (Before) | Next.js (After) |
+|------|-----------------|-----------------|
+| **Codebase** | 1 monolithic `index.js` (~5,244 lines) | 28 API routes + 12 pages, each in its own file |
+| **Views** | EJS templates (server-rendered HTML strings) | React components (interactive, client-side state) |
+| **Routing** | Manual `app.get()`/`app.post()` definitions | File-based — create a file, get a route automatically |
+| **Frontend JS** | Separate vanilla JS files per page | JS lives inside the component — one file = UI + logic |
+
+### Performance
+| Area | Express | Next.js |
+|------|---------|---------|
+| **Page navigation** | Full page reload every click | Client-side navigation (instant, no reload) |
+| **Data fetching** | Server renders entire HTML page | Fetches only JSON data, updates just what changed |
+| **Bundling** | Loads all CSS/JS on every page | Automatic code splitting — loads only what each page needs |
+| **Caching** | None | In-memory cache on lookup tables (5-min TTL) |
+
+### Developer Experience
+| Area | Express | Next.js |
+|------|---------|---------|
+| **Hot reload** | Restart server on every change | Instant hot reload — see changes without refresh |
+| **Adding a page** | Create EJS + route + JS file (3 places) | Create 1 file in `pages/` |
+| **Adding an API** | Add route in `index.js` (find the right spot in 5,000 lines) | Create 1 file in `pages/api/` |
+| **Debugging** | Search through one massive file | Each route is its own file, easy to find |
+
+### Security
+| Area | Express | Next.js |
+|------|---------|---------|
+| **Sessions** | `express-session` (server memory) | `iron-session` (encrypted cookie — no server state) |
+| **Scaling** | Session lost if server restarts | Session survives restarts (stored in cookie) |
+
 ## Key Features
 
 ### Authentication
