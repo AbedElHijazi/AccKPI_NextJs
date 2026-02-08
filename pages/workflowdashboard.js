@@ -494,7 +494,7 @@ export default function WorkflowDashboard() {
             </button>
             <button
               className="btn btn-outline"
-              onClick={() => router.push('/login')}
+              onClick={() => { window.location.href = '/api/auth/logout'; }}
             >
               Logout
             </button>

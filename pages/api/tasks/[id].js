@@ -62,7 +62,8 @@ async function updateTask(taskId, req, res) {
     priority, Priority,
     daysRequired, DaysRequired,
     isTaskSelected, IsTaskSelected,
-    isFixed, IsFixed
+    isFixed, IsFixed,
+    plannedDate, PlannedDate
   } = req.body;
 
   const name = TaskName || taskName;
@@ -71,6 +72,7 @@ async function updateTask(taskId, req, res) {
   const fixed = IsFixed !== undefined ? IsFixed : isFixed;
   const selected = IsTaskSelected !== undefined ? IsTaskSelected : isTaskSelected;
   const prio = Priority !== undefined ? Priority : priority;
+  const planned = PlannedDate !== undefined ? PlannedDate : plannedDate;
 
   try {
     const pool = await getPool();
@@ -102,6 +104,10 @@ async function updateTask(taskId, req, res) {
     if (fixed !== undefined) {
       updates.push('IsFixed = @IsFixed');
       request.input('IsFixed', sql.Bit, fixed ? 1 : 0);
+    }
+    if (planned !== undefined) {
+      updates.push('PlannedDate = @PlannedDate');
+      request.input('PlannedDate', sql.VarChar(30), planned);
     }
 
     if (updates.length === 0) {

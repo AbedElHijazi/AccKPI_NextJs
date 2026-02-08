@@ -212,7 +212,8 @@ export default function WorkflowUserPage() {
 
   const showDatePicker = (title, minDateStr = null) => {
     return new Promise((resolve, reject) => {
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
       setDateModal({
         title,
         minDate: minDateStr || '1900-01-01',
@@ -339,21 +340,38 @@ export default function WorkflowUserPage() {
   };
 
   const handleConfirmPaymentDate = async (paymentStep, selectedDate) => {
-    const paymentTasks = tasks.filter(t => t.PaymentStep === paymentStep && t.DepId !== 9 && t.DepId !== 8);
-    if (paymentTasks.length > 0) {
-      const sorted = [...paymentTasks].sort((a, b) => a.TaskID - b.TaskID);
-      const firstTask = sorted[0];
-      try {
+    try {
+      // 1. Set StepStartDate on the payment step
+      const activeStep = paymentSteps.find(s => s.isActive && s.stepNumber === paymentStep);
+      if (activeStep) {
+        await fetch(`/api/workflow-steps/${hdrId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stepNumber: paymentStep, StepStartDate: selectedDate })
+        });
+      }
+
+      // 2. Find first task (by StepOrder, excluding Contract/Procurement)
+      const paymentTasks = tasks.filter(t => t.DepId !== 9 && t.DepId !== 8);
+      if (paymentTasks.length > 0) {
+        const sorted = [...paymentTasks].sort((a, b) =>
+          (a.StepOrder || 9999) - (b.StepOrder || 9999) || (a.Priority || 0) - (b.Priority || 0) || a.TaskID - b.TaskID
+        );
+        const firstTask = sorted[0];
+
+        // 3. Set PlannedDate and IsTaskSelected on the first task
         await fetch(`/api/tasks/${firstTask.TaskID}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ PlannedDate: selectedDate })
+          body: JSON.stringify({ PlannedDate: selectedDate, IsTaskSelected: 1 })
         });
-      } catch (err) {
-        console.error('Error updating planned date:', err);
       }
+
+      showSuccess(`Start date for Payment ${paymentStep} set to ${selectedDate}`);
+    } catch (err) {
+      console.error('Error setting payment date:', err);
+      showError('Failed to set payment date');
     }
-    showSuccess(`Start date for Payment ${paymentStep} set to ${selectedDate}`);
     setPaymentDateModal(null);
     fetchData();
   };
@@ -584,6 +602,30 @@ export default function WorkflowUserPage() {
           </div>
         </section>
 
+        {/* Payment Steps */}
+        {paymentSteps.length > 0 && (
+          <section className="payment-section">
+            <h2><i className="fas fa-credit-card" /> Payment Steps ({paymentSteps.length})</h2>
+            <div className="steps-grid">
+              {paymentSteps.map(step => (
+                <div key={step.workflowStepID} className={`step-card ${step.isActive ? 'active' : step.StepFinished ? 'done' : 'waiting'}`}>
+                  <div className="step-number">Payment {step.stepNumber}</div>
+                  <div className="step-status">
+                    {step.isActive ? '\uD83D\uDFE2 Active' : step.StepFinished ? '\u2705 Completed' : '\u23F3 Waiting'}
+                  </div>
+                  {step.StepStartDate && <div className="step-date">Started: {formatDateString(step.StepStartDate)}</div>}
+                  {step.StepFinished && <div className="step-date">Finished: {formatDateString(step.StepFinished)}</div>}
+                  {step.isActive && step.stepNumber > 1 && !step.StepStartDate && (
+                    <button className="btn-set-date" onClick={() => handleSetPaymentDate(step.stepNumber)}>
+                      <i className="fas fa-calendar-plus" /> Set Start Date
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Search & Filter */}
         <section className="filters-bar">
           <div className="search-box">
@@ -625,7 +667,6 @@ export default function WorkflowUserPage() {
                         <thead>
                           <tr>
                             <th>Task Name</th>
-                            <th>Description</th>
                             <th>Planned Date</th>
                             <th>Days Required</th>
                             <th>Start Date</th>
@@ -646,7 +687,6 @@ export default function WorkflowUserPage() {
                             return (
                               <tr key={task.TaskID} className={task.IsTaskSelected ? 'active-task-row' : ''}>
                                 <td data-label="Task Name">{task.TaskName || ''}</td>
-                                <td data-label="Description">{task.TaskPlanned || ''}</td>
                                 <td data-label="Planned Date">
                                   <span className="date-display"><i className="fas fa-calendar-alt" /> {formatDateString(task.PlannedDate)}</span>
                                 </td>
@@ -723,32 +763,8 @@ export default function WorkflowUserPage() {
           )}
         </section>
 
-        {/* Payment Steps */}
-        {paymentSteps.length > 0 && (
-          <section className="payment-section">
-            <h2><i className="fas fa-credit-card" /> Payment Steps ({paymentSteps.length})</h2>
-            <div className="steps-grid">
-              {paymentSteps.map(step => (
-                <div key={step.workflowStepID} className={`step-card ${step.isActive ? 'active' : step.StepFinished ? 'done' : 'waiting'}`}>
-                  <div className="step-number">Payment {step.stepNumber}</div>
-                  <div className="step-status">
-                    {step.isActive ? '\uD83D\uDFE2 Active' : step.StepFinished ? '\u2705 Completed' : '\u23F3 Waiting'}
-                  </div>
-                  {step.StepStartDate && <div className="step-date">Started: {formatDateString(step.StepStartDate)}</div>}
-                  {step.StepFinished && <div className="step-date">Finished: {formatDateString(step.StepFinished)}</div>}
-                  {!step.isActive && !step.StepFinished && (
-                    <button className="btn-set-date" onClick={() => handleSetPaymentDate(step.stepNumber)}>
-                      <i className="fas fa-calendar-plus" /> Set Start Date
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Task History */}
-        {taskHistory.length > 0 && (
+        {/* Task History - only for multi-payment workflows */}
+        {paymentSteps.length > 0 && taskHistory.length > 0 && (
           <section className="history-section">
             <h2><i className="fas fa-history" /> Task History</h2>
             <div className="history-filters">

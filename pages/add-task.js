@@ -12,7 +12,6 @@ export default function AddTaskPage() {
     ProcessID: '',
     DepId: '',
     TaskName: '',
-    TaskPlanned: '',
     DaysRequired: '',
     IsFixed: 0,
     linkTasks: '',
@@ -101,7 +100,6 @@ export default function AddTaskPage() {
     
     if (!formData.DepId) newErrors.DepId = 'Department is required';
     if (!formData.TaskName.trim()) newErrors.TaskName = 'Task name is required';
-    if (!formData.TaskPlanned.trim()) newErrors.TaskPlanned = 'Description is required';
     if (!formData.DaysRequired || isNaN(formData.DaysRequired) || formData.DaysRequired < 0) {
       newErrors.DaysRequired = 'Valid number of days required';
     }
@@ -144,7 +142,7 @@ export default function AddTaskPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           TaskName: formData.TaskName,
-          TaskPlanned: formData.TaskPlanned,
+          TaskPlanned: '',
           DepId: parseInt(formData.DepId),
           ProcessID: parseInt(formData.ProcessID),
           DaysRequired: parseInt(formData.DaysRequired),
@@ -167,7 +165,6 @@ export default function AddTaskPage() {
         ProcessID: parseInt(processId),
         DepId: '',
         TaskName: '',
-        TaskPlanned: '',
         DaysRequired: '',
         IsFixed: 0,
         linkTasks: '',
@@ -210,7 +207,6 @@ export default function AddTaskPage() {
     setEditingTask(task);
     setEditForm({
       TaskName: task.TaskName || '',
-      TaskPlanned: task.TaskPlanned || '',
       DaysRequired: task.DaysRequired || '',
       IsFixed: task.IsFixed || 0,
     });
@@ -220,7 +216,7 @@ export default function AddTaskPage() {
   const handleSaveEdit = async () => {
     if (!editingTask) return;
 
-    if (!editForm.TaskName.trim() || !editForm.TaskPlanned.trim() || !editForm.DaysRequired) {
+    if (!editForm.TaskName.trim() || !editForm.DaysRequired) {
       showToast('error', 'Validation Error', 'All fields are required');
       return;
     }
@@ -231,7 +227,6 @@ export default function AddTaskPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           TaskName: editForm.TaskName,
-          TaskPlanned: editForm.TaskPlanned,
           DaysRequired: parseInt(editForm.DaysRequired),
           IsFixed: editForm.IsFixed,
         }),
@@ -251,8 +246,7 @@ export default function AddTaskPage() {
 
   // Filter and paginate tasks
   const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.TaskName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         task.TaskPlanned?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = task.TaskName?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = !statusFilter || task.Status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -784,21 +778,6 @@ export default function AddTaskPage() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="TaskPlanned" className="required-field">Task Description</label>
-              <textarea
-                id="TaskPlanned"
-                name="TaskPlanned"
-                value={formData.TaskPlanned}
-                onChange={handleInputChange}
-                maxLength="255"
-                rows="3"
-                className={errors.TaskPlanned ? 'error' : ''}
-              />
-              <div className="char-counter">{formData.TaskPlanned.length}/255</div>
-              {errors.TaskPlanned && <div className="validation-error visible">{errors.TaskPlanned}</div>}
-            </div>
-
-            <div className="form-group">
               <label htmlFor="DaysRequired" className="required-field">Estimated Days</label>
               <input
                 type="number"
@@ -1022,28 +1001,6 @@ export default function AddTaskPage() {
                     boxSizing: 'border-box'
                   }}
                 />
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Description</label>
-                <textarea
-                  value={editForm.TaskPlanned || ''}
-                  onChange={(e) => setEditForm({ ...editForm, TaskPlanned: e.target.value })}
-                  maxLength="255"
-                  rows="3"
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '1px solid #ddd',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                    fontFamily: 'inherit'
-                  }}
-                />
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                  {editForm.TaskPlanned?.length || 0}/255
-                </div>
               </div>
 
               <div style={{ marginBottom: '15px' }}>

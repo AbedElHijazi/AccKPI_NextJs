@@ -6,6 +6,8 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     return await getWorkflowStepsById(id, res);
+  } else if (req.method === 'PUT') {
+    return await updateWorkflowStep(id, req, res);
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
@@ -51,6 +53,33 @@ async function getWorkflowStepsById(workFlowID, res) {
       details: error.message,
       message: 'Database error - check if tblWorkflowSteps table exists and has correct schema'
     });
+  }
+}
+
+async function updateWorkflowStep(workFlowID, req, res) {
+  try {
+    const { stepNumber, StepStartDate } = req.body;
+
+    if (!stepNumber || !StepStartDate) {
+      return res.status(400).json({ error: 'stepNumber and StepStartDate are required' });
+    }
+
+    const pool = await getPool();
+
+    await pool.request()
+      .input('workFlowID', sql.Int, parseInt(workFlowID))
+      .input('stepNumber', sql.Int, stepNumber)
+      .input('stepStartDate', sql.VarChar(30), StepStartDate)
+      .query(`
+        UPDATE tblWorkflowSteps
+        SET StepStartDate = CAST(@stepStartDate AS DATETIME2)
+        WHERE workFlowID = @workFlowID AND stepNumber = @stepNumber
+      `);
+
+    return res.status(200).json({ success: true, message: 'Step start date updated' });
+  } catch (error) {
+    console.error('Error updating workflow step:', error);
+    return res.status(500).json({ error: 'Failed to update workflow step' });
   }
 }
 

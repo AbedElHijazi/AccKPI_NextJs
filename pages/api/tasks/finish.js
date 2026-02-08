@@ -15,12 +15,8 @@ export default async function handler(req, res) {
   try {
     const pool = await getPool();
 
-    // Parse finishTime as YYYY-MM-DD format
-    const finishTimeFormatted = finishTime.includes('T')
-      ? finishTime.split('T')[0] + ' 00:00:00'
-      : finishTime.includes('-') && !finishTime.includes(':')
-        ? finishTime + ' 00:00:00'
-        : finishTime;
+    // Extract just the date part (YYYY-MM-DD) to avoid timezone shifts
+    const finishDateOnly = finishTime.split('T')[0].split(' ')[0];
 
     // Get task info
     const taskResult = await pool.request()
@@ -33,23 +29,26 @@ export default async function handler(req, res) {
 
     const { PlannedDate, DepId, DaysRequired } = taskResult.recordset[0];
 
-    // Calculate delay
-    const plannedDateObj = new Date(PlannedDate);
-    const finishDateObj = new Date(finishTime + 'T00:00:00Z');
+    // Calculate delay using date-only strings to avoid timezone issues
+    const plannedStr = PlannedDate ? (typeof PlannedDate === 'string' ? PlannedDate.split('T')[0].split(' ')[0] : PlannedDate.toISOString().split('T')[0]) : finishDateOnly;
+    const [pY, pM, pD] = plannedStr.split('-').map(Number);
+    const [fY, fM, fD] = finishDateOnly.split('-').map(Number);
+    const plannedDateObj = new Date(Date.UTC(pY, pM - 1, pD));
+    const finishDateObj = new Date(Date.UTC(fY, fM - 1, fD));
     const delayMs = finishDateObj.getTime() - plannedDateObj.getTime();
     const delay = Math.max(0, Math.round(delayMs / (1000 * 60 * 60 * 24)));
 
-    console.log('Delay calculation:', { PlannedDate, finishTime, delay });
+    console.log('Delay calculation:', { PlannedDate, finishDateOnly, delay });
 
-    // Mark workflow detail as finished
+    // Mark workflow detail as finished (pass as VarChar, cast in SQL to avoid timezone shift)
     await pool.request()
       .input('taskId', sql.Int, taskId)
-      .input('finishTime', sql.DateTime2, finishTimeFormatted)
+      .input('finishTime', sql.VarChar(30), finishDateOnly)
       .input('delay', sql.Int, delay)
       .input('workFlowHdrId', sql.Int, workFlowHdrId)
       .query(`
         UPDATE tblWorkflowDtl
-        SET TimeFinished = @finishTime, Delay = @delay
+        SET TimeFinished = CAST(@finishTime AS DATETIME2), Delay = @delay
         WHERE TaskID = @taskId AND workFlowHdrId = @workFlowHdrId
       `);
 
@@ -91,7 +90,7 @@ export default async function handler(req, res) {
             .input('deptName', sql.NVarChar, deptName)
             .input('isTaskSelected', sql.Bit, taskDetails.IsTaskSelected)
             .input('timeStarted', sql.DateTime2, timeStarted)
-            .input('timeFinished', sql.DateTime2, finishTimeFormatted)
+            .input('timeFinished', sql.VarChar(30), finishDateOnly)
             .input('delayValue', sql.Int, delay)
             .input('priority', sql.Int, taskDetails.Priority)
             .input('plannedDate', sql.DateTime2, taskDetails.PlannedDate)
@@ -161,13 +160,14 @@ export default async function handler(req, res) {
       const taskSequenceNumber = finishedTasksCount.recordset[0].Count + 1;
       const buffer = (taskSequenceNumber >= 3 && nextTaskDays < 20) ? 1 : 0;
 
-      const nextPlanned = new Date(finishDateObj);
-      nextPlanned.setDate(nextPlanned.getDate() + nextTaskDays + buffer);
+      // Calculate next planned date by adding days to the finish date (UTC to avoid shift)
+      const nextPlanned = new Date(Date.UTC(fY, fM - 1, fD + nextTaskDays + buffer));
+      const nextPlannedStr = nextPlanned.toISOString().split('T')[0];
 
       await pool.request()
-        .input('plannedDate', sql.VarChar, nextPlanned.toISOString().split('T')[0])
+        .input('plannedDate', sql.VarChar, nextPlannedStr)
         .input('nextTaskId', sql.Int, nextTaskId)
-        .query(`UPDATE tblTasks SET PlannedDate = @plannedDate WHERE TaskID = @nextTaskId`);
+        .query(`UPDATE tblTasks SET PlannedDate = CAST(@plannedDate AS DATE) WHERE TaskID = @nextTaskId`);
 
       await pool.request()
         .input('nextTaskId', sql.Int, nextTaskId)
@@ -254,13 +254,13 @@ export default async function handler(req, res) {
             const seqNum = finishedCount.recordset[0].Count + 1;
             const buf = (seqNum >= 3 && nextDeptDays < 20) ? 1 : 0;
 
-            const plannedDate = new Date(finishDateObj);
-            plannedDate.setDate(plannedDate.getDate() + nextDeptDays + buf);
+            const nextDeptPlanned = new Date(Date.UTC(fY, fM - 1, fD + nextDeptDays + buf));
+            const nextDeptPlannedStr = nextDeptPlanned.toISOString().split('T')[0];
 
             await pool.request()
-              .input('plannedDate', sql.VarChar, plannedDate.toISOString().split('T')[0])
+              .input('plannedDate', sql.VarChar, nextDeptPlannedStr)
               .input('nextDeptTaskId', sql.Int, nextDeptTaskId)
-              .query(`UPDATE tblTasks SET PlannedDate = @plannedDate WHERE TaskID = @nextDeptTaskId`);
+              .query(`UPDATE tblTasks SET PlannedDate = CAST(@plannedDate AS DATE) WHERE TaskID = @nextDeptTaskId`);
           }
         }
       }
@@ -274,7 +274,7 @@ export default async function handler(req, res) {
           SELECT COUNT(*) AS UnfinishedCount
           FROM tblWorkflowDtl wd
           JOIN tblTasks t ON wd.TaskID = t.TaskID
-          WHERE wd.workFlowHdrId = @workFlowHdrId AND wd.TimeFinished IS NULL AND t.DepId != 9
+          WHERE wd.workFlowHdrId = @workFlowHdrId AND wd.TimeFinished IS NULL AND t.DepId NOT IN (8, 9)
         `);
 
       if (allTasksFinishedResult.recordset[0].UnfinishedCount === 0) {
@@ -315,7 +315,21 @@ export default async function handler(req, res) {
               .input('nextStep', sql.Int, nextStepNumber)
               .query(`UPDATE tblWorkflowSteps SET isActive = 1 WHERE workFlowID = @workFlowHdrId AND stepNumber = @nextStep`);
 
-            // Reset workflow details for next payment
+            // Delete MovePassOnce department (Contract/Procurement) workflow detail records
+            await pool.request()
+              .input('workFlowHdrId', sql.Int, workFlowHdrId)
+              .query(`
+                DELETE FROM tblWorkflowDtl
+                WHERE workFlowHdrId = @workFlowHdrId
+                  AND TaskID IN (
+                    SELECT t.TaskID FROM tblTasks t
+                    INNER JOIN tblDepartments d ON t.DepId = d.DepartmentID
+                    WHERE t.WorkFlowHdrID = @workFlowHdrId
+                      AND ISNULL(d.MovePassOnce, 0) = 1
+                  )
+              `);
+
+            // Reset remaining workflow details for next payment
             await pool.request()
               .input('workFlowHdrId', sql.Int, workFlowHdrId)
               .query(`UPDATE tblWorkflowDtl SET TimeStarted = NULL, TimeFinished = NULL, Delay = NULL, DelayReason = NULL, PlannedDate = NULL WHERE workFlowHdrId = @workFlowHdrId`);
@@ -332,14 +346,15 @@ export default async function handler(req, res) {
                 WHERE TaskID IN (SELECT t.TaskID FROM tblTasks t JOIN tblWorkflowDtl w ON t.TaskID = w.TaskID WHERE w.workFlowHdrId = @workFlowHdrId)
               `);
 
-            // Select first non-Contract, non-Procurement task
+            // Select first task by StepOrder (excluding Contract/Procurement)
             const firstTaskResult = await pool.request()
               .input('workFlowHdrId', sql.Int, workFlowHdrId)
               .query(`
                 SELECT TOP 1 t.TaskID FROM tblTasks t
                 JOIN tblWorkflowDtl w ON t.TaskID = w.TaskID
+                LEFT JOIN tblProcessDepartment pd ON pd.DepartmentID = t.DepId AND pd.ProcessID = t.proccessID
                 WHERE w.workFlowHdrId = @workFlowHdrId AND t.DepId NOT IN (8, 9)
-                ORDER BY t.DepId ASC, t.Priority ASC, t.TaskID ASC
+                ORDER BY ISNULL(pd.StepOrder, 9999) ASC, t.Priority ASC, t.TaskID ASC
               `);
 
             if (firstTaskResult.recordset.length > 0) {

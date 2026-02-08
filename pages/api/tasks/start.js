@@ -18,19 +18,17 @@ export default async function handler(req, res) {
     await transaction.begin();
 
     try {
-      // Format start time
-      const startTimeFormatted = startTime.includes('-') && !startTime.includes(':')
-        ? startTime + ' 00:00:00'
-        : startTime;
+      // Extract just the date part (YYYY-MM-DD) to avoid timezone shifts
+      const startDateOnly = startTime.split('T')[0].split(' ')[0];
 
       // 1. Update task start time in workflow detail
       await transaction.request()
         .input('taskId', sql.Int, taskId)
         .input('workFlowHdrId', sql.Int, workFlowHdrId)
-        .input('startTime', sql.DateTime2, startTimeFormatted)
+        .input('startTime', sql.VarChar(30), startDateOnly)
         .query(`
           UPDATE tblWorkflowDtl
-          SET TimeStarted = @startTime
+          SET TimeStarted = CAST(@startTime AS DATETIME2)
           WHERE TaskID = @taskId 
             AND workFlowHdrId = @workFlowHdrId
             AND TimeStarted IS NULL
