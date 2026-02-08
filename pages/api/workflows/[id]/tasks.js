@@ -33,6 +33,8 @@ export default async function handler(req, res) {
       DaysRequired: task.DaysRequired,
       IsFixed: task.IsFixed,
       WorkFlowHdrID: task.WorkFlowHdrID,
+      workFlowHdrId: task.workFlowHdrId,
+      NumberOfProccessID: task.NumberOfProccessID,
       linkTasks: task.linkTasks,
       WorkflowDtlId: task.WorkflowDtlId,
       TimeStarted: task.TimeStarted,
