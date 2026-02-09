@@ -11,6 +11,9 @@ export default function AdminPage() {
   const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [editUser, setEditUser] = useState(null);
+  const [editForm, setEditForm] = useState({ usrDesc: '', usrEmail: '', usrPWD: '', DepartmentID: '', usrAdmin: false, IsSpecialUser: false });
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -67,6 +70,80 @@ export default function AdminPage() {
       router.push('/login');
     } catch (err) {
       console.error('Logout failed:', err);
+    }
+  };
+
+  const handleDeleteUser = async (usrID) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    try {
+      const res = await fetch(`/api/users/${usrID}`, { method: 'DELETE' });
+      if (res.ok) {
+        setUsers(users => users.filter(u => u.usrID !== usrID));
+      } else {
+        alert('Failed to delete user');
+      }
+    } catch (err) {
+      alert('Error deleting user');
+    }
+  };
+
+  const openEditModal = (user) => {
+    console.log('openEditModal called with:', user);
+    setEditUser(user);
+    setEditForm({
+      usrDesc: user.usrDesc != null ? String(user.usrDesc) : '',
+      usrEmail: user.usrEmail != null ? String(user.usrEmail) : '',
+      usrPWD: '',
+      DepartmentID: user.DepartmentID != null ? String(user.DepartmentID) : '',
+      usrAdmin: !!user.usrAdmin,
+      IsSpecialUser: !!user.IsSpecialUser
+    });
+  };
+  const closeEditModal = () => {
+    setEditUser(null);
+    setEditForm({ usrDesc: '', usrEmail: '', usrPWD: '', DepartmentID: '', usrAdmin: false, IsSpecialUser: false });
+  };
+  const handleEditChange = e => {
+    const { name, value, type, checked } = e.target;
+    setEditForm(f => {
+      let updated = { ...f };
+      if (type === 'checkbox') {
+        updated[name] = checked;
+        // If making user special, remove admin
+        if (name === 'IsSpecialUser' && checked) {
+          updated.usrAdmin = false;
+        }
+        // If making user admin, remove special and department
+        if (name === 'usrAdmin' && checked) {
+          updated.IsSpecialUser = false;
+          delete updated.DepartmentID;
+        }
+      } else {
+        updated[name] = value;
+      }
+      return updated;
+    });
+  };
+  const handleEditSubmit = async e => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/users/${editUser.usrID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setUsers(users => users.map(u => u.usrID === editUser.usrID ? { ...u, ...editForm, usrPWD: undefined } : u));
+        closeEditModal();
+      } else {
+        alert('Failed to update user');
+      }
+    } catch (err) {
+      alert('Error updating user');
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -423,7 +500,26 @@ export default function AdminPage() {
       <header className="dashboard-header">
         <img src="/images/accLogo.png" alt="Company Logo" className="logo" />
         <div className="header-right">
-          <p className="user-info">🔐 Admin: {user.name || user.usrDesc}</p>
+          <p className="user-info">
+            🔐
+            <span style={{ fontWeight: 'bold', color: '#333' }}>
+              {user.usrAdmin ? 'Admin' : user.IsSpecialUser ? 'Special User' : 'Regular User'}
+            </span>
+            <span style={{
+              display: 'inline-block',
+              marginLeft: 8,
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              backgroundColor: user.usrAdmin ? '#d32f2f' : user.IsSpecialUser ? '#ffc107' : '#005bab',
+              color: user.usrAdmin ? 'white' : user.IsSpecialUser ? '#856404' : 'white',
+              border: user.IsSpecialUser ? '1px solid #ffc107' : 'none'
+            }}>
+              {user.usrAdmin ? 'ADMIN' : user.IsSpecialUser ? 'SPECIAL' : 'REGULAR'}
+            </span>
+            : {user.name || user.usrDesc}
+          </p>
           <button onClick={handleLogout} className="logout-btn">
             <i className="fas fa-sign-out-alt"></i> Log out
           </button>
@@ -443,11 +539,7 @@ export default function AdminPage() {
               <span className="btn-label">Add User</span>
               <span className="btn-subtitle">Create account</span>
             </a>
-            <a href="#" className="action-btn" title="Add workflow">
-              <i className="fas fa-plus-circle"></i>
-              <span className="btn-label">Add Workflow</span>
-              <span className="btn-subtitle">New workflow</span>
-            </a>
+
             <a href="/processes" className="action-btn" title="Manage processes">
               <i className="fas fa-cogs"></i>
               <span className="btn-label">Processes</span>
@@ -508,7 +600,7 @@ export default function AdminPage() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Department</th>
-                  <th>Admin</th>
+                  <th>Type</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -520,14 +612,23 @@ export default function AdminPage() {
                     <td>{u.usrEmail}</td>
                     <td>{u.DeptName || '-'}</td>
                     <td>
-                      <span className={`badge ${u.usrAdmin ? 'admin' : 'inactive'}`}>
-                        {u.usrAdmin ? 'Admin' : 'User'}
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '13px',
+                        fontWeight: 'bold',
+                        backgroundColor: u.usrAdmin ? '#d32f2f' : u.IsSpecialUser ? '#ffc107' : '#005bab',
+                        color: u.usrAdmin ? 'white' : u.IsSpecialUser ? '#856404' : 'white',
+                        border: u.IsSpecialUser ? '1px solid #ffc107' : 'none'
+                      }}>
+                        {u.usrAdmin ? 'ADMIN' : u.IsSpecialUser ? 'SPECIAL' : 'REGULAR'}
                       </span>
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <button>Edit</button>
-                        <button>Delete</button>
+                        <button onClick={() => openEditModal(u)}>Edit</button>
+                        <button onClick={() => handleDeleteUser(u.usrID)}>Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -662,6 +763,148 @@ export default function AdminPage() {
             <p>No departments found</p>
           )}
         </div>
+
+        {/* Edit User Modal */}
+        {editUser && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '30px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: 0, marginBottom: '20px' }}>
+                <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#333' }}>
+                  {editForm.usrAdmin ? 'Admin' : editForm.IsSpecialUser ? 'Special User' : 'Regular User'}
+                </span>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  backgroundColor: editForm.usrAdmin ? '#d32f2f' : editForm.IsSpecialUser ? '#ffc107' : '#005bab',
+                  color: editForm.usrAdmin ? 'white' : editForm.IsSpecialUser ? '#856404' : 'white',
+                  border: editForm.IsSpecialUser ? '1px solid #ffc107' : 'none'
+                }}>
+                  {editForm.usrAdmin ? 'ADMIN' : editForm.IsSpecialUser ? 'SPECIAL' : 'REGULAR'}
+                </span>
+              </div>
+              {/* Privilege type display */}
+              <div style={{ marginBottom: '15px', fontWeight: 'bold', color: '#005bab' }}>
+                Privilege:&nbsp;
+                {editForm.usrAdmin ? 'Admin' : editForm.IsSpecialUser ? 'Special User' : 'Regular User'}
+              </div>
+              <form onSubmit={handleEditSubmit}>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Name</label>
+                  <input
+                    type="text"
+                    name="usrDesc"
+                    value={editForm.usrDesc ?? ''}
+                    onChange={handleEditChange}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Email</label>
+                  <input
+                    type="email"
+                    name="usrEmail"
+                    value={editForm.usrEmail ?? ''}
+                    onChange={handleEditChange}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Password (leave blank to keep unchanged)</label>
+                  <input
+                    type="password"
+                    name="usrPWD"
+                    value={editForm.usrPWD ?? ''}
+                    onChange={handleEditChange}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                {(!editForm.usrAdmin) ? (
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Department <span style={{color:'#d32f2f'}}>*</span></label>
+                    <select
+                      name="DepartmentID"
+                      value={editForm.DepartmentID ? String(editForm.DepartmentID) : ''}
+                      onChange={handleEditChange}
+                      required
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                    >
+                      <option value="">Select department...</option>
+                      {departments.map(d => (
+                        <option key={d.DepartmentID} value={String(d.DepartmentID)}>{d.DeptName}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '15px', color:'#888', fontStyle:'italic' }}>
+                    Department selection is only required for regular users.
+                  </div>
+                )}
+                <div style={{ marginBottom: '20px', display: 'flex', gap: '16px' }}>
+                  {editForm.usrAdmin ? (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" name="usrAdmin" checked={!!editForm.usrAdmin} onChange={handleEditChange} /> Admin
+                    </label>
+                  ) : editForm.IsSpecialUser ? (
+                    <>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" name="IsSpecialUser" checked={!!editForm.IsSpecialUser} onChange={handleEditChange} /> Special User
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" name="usrAdmin" checked={!!editForm.usrAdmin} onChange={handleEditChange} /> Admin
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" name="usrAdmin" checked={!!editForm.usrAdmin} onChange={handleEditChange} /> Admin
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" name="IsSpecialUser" checked={!!editForm.IsSpecialUser} onChange={handleEditChange} /> Special User
+                      </label>
+                    </>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    style={{ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '6px', backgroundColor: '#f5f5f5', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editLoading}
+                    style={{ padding: '10px 20px', border: 'none', borderRadius: '6px', backgroundColor: '#005bab', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}
+                  >
+                    {editLoading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </>
   );

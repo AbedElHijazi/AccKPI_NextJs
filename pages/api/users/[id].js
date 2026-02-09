@@ -51,14 +51,13 @@ async function getUserDetail(userId, res) {
 }
 
 async function updateUser(userId, req, res) {
-  const { usrDesc, DepartmentID, usrAdmin, IsSpecialUser } = req.body;
+  const { usrDesc, DepartmentID, usrAdmin, IsSpecialUser, usrPWD, usrEmail } = req.body;
 
   try {
     const pool = await getPool();
 
     const updates = [];
     const request = pool.request().input('usrID', sql.NVarChar, userId);
-
     if (usrDesc !== undefined) {
       updates.push('usrDesc = @usrDesc');
       request.input('usrDesc', sql.NVarChar, usrDesc);
@@ -75,13 +74,18 @@ async function updateUser(userId, req, res) {
       updates.push('IsSpecialUser = @IsSpecialUser');
       request.input('IsSpecialUser', sql.Bit, IsSpecialUser);
     }
-
+    if (usrPWD !== undefined && usrPWD !== '') {
+      updates.push('usrPWD = @usrPWD');
+      request.input('usrPWD', sql.NVarChar, usrPWD);
+    }
+    if (usrEmail !== undefined) {
+      updates.push('usrEmail = @usrEmail');
+      request.input('usrEmail', sql.NVarChar, usrEmail);
+    }
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-
     await request.query(`UPDATE tblUsers SET ${updates.join(', ')} WHERE usrID = @usrID`);
-
     return res.status(200).json({
       success: true,
       message: 'User updated successfully'
