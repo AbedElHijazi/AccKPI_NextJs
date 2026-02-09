@@ -3,9 +3,16 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 
 export default function AdminPage() {
+    // Filter and search state
+    const [searchTerm, setSearchTerm] = useState("");
+    const [filterType, setFilterType] = useState("");
+    const [filterDept, setFilterDept] = useState("");
   const { user, loading } = useAdminAuth();
   const router = useRouter();
   const [users, setUsers] = useState([]);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 10;
   const [workflows, setWorkflows] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -39,6 +46,7 @@ export default function AdminPage() {
         if (usersRes.ok) {
           const data = await usersRes.json();
           setUsers(data);
+          setCurrentPage(1); // Reset to first page on reload
         }
         if (workflowsRes.ok) {
           const data = await workflowsRes.json();
@@ -225,6 +233,32 @@ export default function AdminPage() {
   if (!user) {
     return null;
   }
+
+  // Filtered and searched users
+  const filteredUsers = users.filter(u => {
+    // Filter by type
+    let typeMatch = true;
+    if (filterType === "admin") typeMatch = u.usrAdmin;
+    else if (filterType === "special") typeMatch = u.IsSpecialUser && !u.usrAdmin;
+    else if (filterType === "regular") typeMatch = !u.usrAdmin && !u.IsSpecialUser;
+    // Filter by department
+    let deptMatch = true;
+    if (filterDept) deptMatch = String(u.DepartmentID) === String(filterDept);
+    // Search
+    let searchMatch = true;
+    if (searchTerm.trim()) {
+      const s = searchTerm.trim().toLowerCase();
+      searchMatch = (
+        (u.usrID && String(u.usrID).toLowerCase().includes(s)) ||
+        (u.usrDesc && u.usrDesc.toLowerCase().includes(s)) ||
+        (u.usrEmail && u.usrEmail.toLowerCase().includes(s))
+      );
+    }
+    return typeMatch && deptMatch && searchMatch;
+  });
+
+  // Pagination on filtered users
+  const pagedUsers = filteredUsers.slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage);
 
   return (
     <>
@@ -456,10 +490,8 @@ export default function AdminPage() {
         }
 
         .table-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1rem;
+         display: flex;
+         justify-content: space-between;
         }
 
         .table-header h3 {
@@ -657,11 +689,153 @@ export default function AdminPage() {
 
         {/* Users Management */}
         <div className="table-container">
-          <div className="table-header">
-            <h3><i className="fas fa-users"></i> Users Management</h3>
-            <button className="add-btn" onClick={() => setAddUserModal(true)}>+ Add User</button>
-                  {/* Add User Modal */}
-                  {addUserModal && (
+          <div className="table-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.2rem', padding: '0.5rem 0', background: 'none' }}>
+            <h3 style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}><i className="fas fa-users"></i> Users Management</h3>
+            <button className="add-btn" onClick={() => setAddUserModal(true)} style={{ whiteSpace: 'nowrap' }}>+ Add User</button>
+          </div>
+          {/* Filter/Search Bar and Table/Pagination in same div */}
+          <div style={{ width: '100%' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 24,
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                background: '#fff',
+                borderRadius: 8,
+                padding: '14px 20px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                border: '1px solid #e0e0e0',
+                margin: '16px 0 18px 0',
+                width: '100%',
+                maxWidth: '100%',
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 180 }}>
+                <label style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>Search</label>
+                <input
+                  type="text"
+                  placeholder="ID, name, or email..."
+                  value={searchTerm}
+                  onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 15, background: '#f8fafc' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 130 }}>
+                <label style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>Type</label>
+                <select
+                  value={filterType}
+                  onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }}
+                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 15, background: '#f8fafc' }}
+                >
+                  <option value="">All Types</option>
+                  <option value="admin">Admin</option>
+                  <option value="special">Special User</option>
+                  <option value="regular">Regular User</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 150 }}>
+                <label style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>Department</label>
+                <select
+                  value={filterDept}
+                  onChange={e => { setFilterDept(e.target.value); setCurrentPage(1); }}
+                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 15, background: '#f8fafc' }}
+                >
+                  <option value="">All Departments</option>
+                  {departments.map(d => (
+                    <option key={d.DepartmentID} value={String(d.DepartmentID)}>{d.DeptName}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {loadingData ? (
+              <p>Loading users...</p>
+            ) : filteredUsers.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Department</th>
+                    <th>Type</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedUsers.map(u => (
+                    <tr key={u.usrID}>
+                      <td>{u.usrID}</td>
+                      <td>{u.usrDesc}</td>
+                      <td>{u.usrEmail}</td>
+                      <td>{u.DeptName || '-'}</td>
+                      <td>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 12px',
+                          borderRadius: '20px',
+                          fontSize: '13px',
+                          fontWeight: 'bold',
+                          backgroundColor: u.usrAdmin ? '#d32f2f' : u.IsSpecialUser ? '#ffc107' : '#005bab',
+                          color: u.usrAdmin ? 'white' : u.IsSpecialUser ? '#856404' : 'white',
+                          border: u.IsSpecialUser ? '1px solid #ffc107' : 'none'
+                        }}>
+                          {u.usrAdmin ? 'ADMIN' : u.IsSpecialUser ? 'SPECIAL' : 'REGULAR'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="action-buttons">
+                          <button onClick={() => openEditModal(u)}>Edit</button>
+                          <button onClick={() => handleDeleteUser(u.usrID)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p>No users found</p>
+            )}
+            {/* Pagination Controls */}
+            {filteredUsers.length > usersPerPage && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 20, gap: 8 }}>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{ padding: '6px 14px', borderRadius: 4, border: '1px solid #ccc', background: currentPage === 1 ? '#eee' : '#fff', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  Previous
+                </button>
+                {Array.from({ length: Math.ceil(filteredUsers.length / usersPerPage) }, (_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    style={{
+                      padding: '6px 12px',
+                      margin: '0 2px',
+                      borderRadius: 4,
+                      border: '1px solid #ccc',
+                      background: currentPage === i + 1 ? '#005bab' : '#fff',
+                      color: currentPage === i + 1 ? '#fff' : '#333',
+                      fontWeight: currentPage === i + 1 ? 700 : 400,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredUsers.length / usersPerPage), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredUsers.length / usersPerPage)}
+                  style={{ padding: '6px 14px', borderRadius: 4, border: '1px solid #ccc', background: currentPage === Math.ceil(filteredUsers.length / usersPerPage) ? '#eee' : '#fff', cursor: currentPage === Math.ceil(filteredUsers.length / usersPerPage) ? 'not-allowed' : 'pointer' }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+            {/* Add User Modal */}
+            {addUserModal && (
                     <div style={{
                       position: 'fixed',
                       top: 0,
@@ -811,55 +985,6 @@ export default function AdminPage() {
                     </div>
                   )}
           </div>
-          {loadingData ? (
-            <p>Loading users...</p>
-          ) : users && users.length > 0 ? (
-            <table>
-              <thead>
-                <tr>
-                  <th>User ID</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Department</th>
-                  <th>Type</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.usrID}>
-                    <td>{u.usrID}</td>
-                    <td>{u.usrDesc}</td>
-                    <td>{u.usrEmail}</td>
-                    <td>{u.DeptName || '-'}</td>
-                    <td>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '4px 12px',
-                        borderRadius: '20px',
-                        fontSize: '13px',
-                        fontWeight: 'bold',
-                        backgroundColor: u.usrAdmin ? '#d32f2f' : u.IsSpecialUser ? '#ffc107' : '#005bab',
-                        color: u.usrAdmin ? 'white' : u.IsSpecialUser ? '#856404' : 'white',
-                        border: u.IsSpecialUser ? '1px solid #ffc107' : 'none'
-                      }}>
-                        {u.usrAdmin ? 'ADMIN' : u.IsSpecialUser ? 'SPECIAL' : 'REGULAR'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button onClick={() => openEditModal(u)}>Edit</button>
-                        <button onClick={() => handleDeleteUser(u.usrID)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p>No users found</p>
-          )}
-        </div>
 
         {/* Workflows Management */}
         <div className="table-container">
