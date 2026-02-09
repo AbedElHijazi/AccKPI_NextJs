@@ -14,6 +14,9 @@ export default function AdminPage() {
   const [editUser, setEditUser] = useState(null);
   const [editForm, setEditForm] = useState({ usrDesc: '', usrEmail: '', usrPWD: '', DepartmentID: '', usrAdmin: false, IsSpecialUser: false });
   const [editLoading, setEditLoading] = useState(false);
+  const [addUserModal, setAddUserModal] = useState(false);
+  const [addForm, setAddForm] = useState({ usrID: '', usrDesc: '', usrEmail: '', usrPWD: '', DepartmentID: '', usrAdmin: false, IsSpecialUser: false });
+  const [addLoading, setAddLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -102,6 +105,74 @@ export default function AdminPage() {
   const closeEditModal = () => {
     setEditUser(null);
     setEditForm({ usrDesc: '', usrEmail: '', usrPWD: '', DepartmentID: '', usrAdmin: false, IsSpecialUser: false });
+  };
+  const handleAddChange = e => {
+    const { name, value, type, checked } = e.target;
+    setAddForm(f => {
+      let updated = { ...f };
+      if (type === 'checkbox') {
+        updated[name] = checked;
+        if (name === 'IsSpecialUser' && checked) {
+          updated.usrAdmin = false;
+        }
+        if (name === 'usrAdmin' && checked) {
+          updated.IsSpecialUser = false;
+          delete updated.DepartmentID;
+        }
+      } else {
+        updated[name] = value;
+      }
+      return updated;
+    });
+  };
+
+  const handleAddSubmit = async e => {
+    e.preventDefault();
+    setAddLoading(true);
+    try {
+      const body = { ...addForm };
+      if (!body.usrID) {
+        alert('User ID is required');
+        setAddLoading(false);
+        return;
+      }
+      if (!body.usrAdmin) {
+        if (!body.DepartmentID) {
+          alert('Department is required for regular or special users');
+          setAddLoading(false);
+          return;
+        }
+      } else {
+        delete body.DepartmentID;
+      }
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.idLength === 'number' && data.idLength > 0) {
+          alert('User added successfully');
+        }
+        setAddUserModal(false);
+        setAddForm({ usrID: '', usrDesc: '', usrEmail: '', usrPWD: '', DepartmentID: '', usrAdmin: false, IsSpecialUser: false });
+        await fetchData();
+      } else {
+        let errData;
+        try {
+          errData = await res.json();
+        } catch (jsonErr) {
+          errData = { error: 'Unknown error or non-JSON response' };
+        }
+        console.log('Add user error:', errData);
+        alert(errData.error || 'Failed to add user');
+      }
+    } catch (err) {
+      alert('Error adding user');
+    } finally {
+      setAddLoading(false);
+    }
   };
   const handleEditChange = e => {
     const { name, value, type, checked } = e.target;
@@ -588,7 +659,157 @@ export default function AdminPage() {
         <div className="table-container">
           <div className="table-header">
             <h3><i className="fas fa-users"></i> Users Management</h3>
-            <button className="add-btn">+ Add User</button>
+            <button className="add-btn" onClick={() => setAddUserModal(true)}>+ Add User</button>
+                  {/* Add User Modal */}
+                  {addUserModal && (
+                    <div style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 9000
+                    }}>
+                      <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
+                        padding: '30px',
+                        maxWidth: '500px',
+                        width: '90%',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: 0, marginBottom: '20px' }}>
+                          <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#333' }}>
+                            {addForm.usrAdmin ? 'Admin' : addForm.IsSpecialUser ? 'Special User' : 'Regular User'}
+                          </span>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: addForm.usrAdmin ? '#d32f2f' : addForm.IsSpecialUser ? '#ffc107' : '#005bab',
+                            color: addForm.usrAdmin ? 'white' : addForm.IsSpecialUser ? '#856404' : 'white',
+                            border: addForm.IsSpecialUser ? '1px solid #ffc107' : 'none'
+                          }}>
+                            {addForm.usrAdmin ? 'ADMIN' : addForm.IsSpecialUser ? 'SPECIAL' : 'REGULAR'}
+                          </span>
+                        </div>
+                        <form onSubmit={handleAddSubmit}>
+                          <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>User ID <span style={{color:'#d32f2f'}}>*</span></label>
+                            <input
+                              type="text"
+                              name="usrID"
+                              value={addForm.usrID ?? ''}
+                              onChange={handleAddChange}
+                              required
+                              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Name</label>
+                            <input
+                              type="text"
+                              name="usrDesc"
+                              value={addForm.usrDesc ?? ''}
+                              onChange={handleAddChange}
+                              required
+                              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Email</label>
+                            <input
+                              type="email"
+                              name="usrEmail"
+                              value={addForm.usrEmail ?? ''}
+                              onChange={handleAddChange}
+                              required
+                              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Password</label>
+                            <input
+                              type="password"
+                              name="usrPWD"
+                              value={addForm.usrPWD ?? ''}
+                              onChange={handleAddChange}
+                              required
+                              style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          {(!addForm.usrAdmin) ? (
+                            <div style={{ marginBottom: '15px' }}>
+                              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Department <span style={{color:'#d32f2f'}}>*</span></label>
+                              <select
+                                name="DepartmentID"
+                                value={addForm.DepartmentID ? String(addForm.DepartmentID) : ''}
+                                onChange={handleAddChange}
+                                required
+                                style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                              >
+                                <option value="">Select department...</option>
+                                {departments.map(d => (
+                                  <option key={d.DepartmentID} value={String(d.DepartmentID)}>{d.DeptName}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div style={{ marginBottom: '15px', color:'#888', fontStyle:'italic' }}>
+                              Department selection is only required for regular or special users.
+                            </div>
+                          )}
+                          <div style={{ marginBottom: '20px', display: 'flex', gap: '16px' }}>
+                            {addForm.usrAdmin ? (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input type="checkbox" name="usrAdmin" checked={!!addForm.usrAdmin} onChange={handleAddChange} /> Admin
+                              </label>
+                            ) : addForm.IsSpecialUser ? (
+                              <>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <input type="checkbox" name="IsSpecialUser" checked={!!addForm.IsSpecialUser} onChange={handleAddChange} /> Special User
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <input type="checkbox" name="usrAdmin" checked={!!addForm.usrAdmin} onChange={handleAddChange} /> Admin
+                                </label>
+                              </>
+                            ) : (
+                              <>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <input type="checkbox" name="usrAdmin" checked={!!addForm.usrAdmin} onChange={handleAddChange} /> Admin
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <input type="checkbox" name="IsSpecialUser" checked={!!addForm.IsSpecialUser} onChange={handleAddChange} /> Special User
+                                </label>
+                              </>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => setAddUserModal(false)}
+                              style={{ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '6px', backgroundColor: '#f5f5f5', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={addLoading}
+                              style={{ padding: '10px 20px', border: 'none', borderRadius: '6px', backgroundColor: '#005bab', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}
+                            >
+                              {addLoading ? 'Adding...' : 'Add User'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
           </div>
           {loadingData ? (
             <p>Loading users...</p>
