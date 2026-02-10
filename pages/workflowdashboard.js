@@ -470,15 +470,6 @@ export default function WorkflowDashboard() {
 
           {/* Toolbar */}
           <div className="toolbar">
-            <div className="search-box">
-              <input
-                type="text"
-                placeholder="Search workflows..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-
             <button className="btn btn-outline" onClick={handleExport}>
               Export
             </button>
@@ -506,12 +497,6 @@ export default function WorkflowDashboard() {
                   onClick={() => router.push('/add-workflow')}
                 >
                   Add Workflow
-                </button>
-                <button
-                  className="btn btn-outline"
-                  onClick={() => router.push('/subpackage')}
-                >
-                  Add Package
                 </button>
               </>
             )}
