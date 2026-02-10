@@ -71,6 +71,8 @@ export default function WorkflowUserPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedDepts, setCollapsedDepts] = useState({});
   const [allCollapsed, setAllCollapsed] = useState(false);
+  const [allDepartmentsMaster, setAllDepartmentsMaster] = useState(false);
+  const [masterCollapsed, setMasterCollapsed] = useState(false);
 
   // Messages
   const [successMsg, setSuccessMsg] = useState('');
@@ -189,14 +191,24 @@ export default function WorkflowUserPage() {
   }).sort((a, b) => (a.StepOrder - b.StepOrder) || (a.Priority - b.Priority) || (a.TaskID - b.TaskID));
 
   // Group by department
-  const grouped = {};
-  filteredTasks.forEach(task => {
-    if (!grouped[task.DepId]) {
-      grouped[task.DepId] = { deptName: task.DeptName || `Department ${task.DepId}`, stepOrder: task.StepOrder || 9999, tasks: [] };
-    }
-    grouped[task.DepId].tasks.push(task);
-  });
-
+  let grouped = {};
+  if (allDepartmentsMaster) {
+    // Group all tasks by department under a master header
+    grouped = {};
+    filteredTasks.forEach(task => {
+      if (!grouped[task.DepId]) {
+        grouped[task.DepId] = { deptName: task.DeptName || `Department ${task.DepId}`, stepOrder: task.StepOrder || 9999, tasks: [] };
+      }
+      grouped[task.DepId].tasks.push(task);
+    });
+  } else {
+    filteredTasks.forEach(task => {
+      if (!grouped[task.DepId]) {
+        grouped[task.DepId] = { deptName: task.DeptName || `Department ${task.DepId}`, stepOrder: task.StepOrder || 9999, tasks: [] };
+      }
+      grouped[task.DepId].tasks.push(task);
+    });
+  }
   const sortedGroups = Object.values(grouped).sort((a, b) => a.stepOrder - b.stepOrder);
 
   // Status counts
@@ -406,7 +418,7 @@ export default function WorkflowUserPage() {
 
   const toggleDept = (depId) => {
     setCollapsedDepts(prev => ({ ...prev, [depId]: !prev[depId] }));
-  };
+  } 
 
   const toggleAll = () => {
     const newVal = !allCollapsed;
@@ -414,7 +426,19 @@ export default function WorkflowUserPage() {
     const newState = {};
     Object.keys(grouped).forEach(key => { newState[key] = newVal; });
     setCollapsedDepts(newState);
-  };
+  } 
+
+  // Toggle all departments in master mode
+  const toggleMasterCollapse = () => {
+    const newVal = !masterCollapsed;
+    setMasterCollapsed(newVal);
+    const newState = {};
+    Object.values(grouped).forEach(group => {
+      const depId = group.tasks[0]?.DepId;
+      if (depId !== undefined) newState[depId] = newVal;
+    });
+    setCollapsedDepts(newState);
+  } 
 
   // ─── Render Helpers ────────────────────────────────────────
 
@@ -638,17 +662,145 @@ export default function WorkflowUserPage() {
         </section>
 
         {/* Department Toggle All */}
-        <div className="master-toggle" onClick={toggleAll}>
+        <div className="master-toggle" onClick={() => {
+          if (!allDepartmentsMaster) {
+            setAllDepartmentsMaster(true);
+            setMasterCollapsed(false);
+            // Reset collapse state when switching to master
+            const newState = {};
+            Object.values(grouped).forEach(group => {
+              const depId = group.tasks[0]?.DepId;
+              if (depId !== undefined) newState[depId] = false;
+            });
+            setCollapsedDepts(newState);
+          } else {
+            // If already in master mode, toggle collapse/expand all
+            toggleMasterCollapse();
+          }
+        }}>
           <i className="fas fa-layer-group" />
           <span>All Departments</span>
           <span className="badge">{sortedGroups.length} departments</span>
-          <i className={`fas fa-chevron-${allCollapsed ? 'right' : 'down'}`} />
+          <i className={`fas fa-chevron-${allDepartmentsMaster && masterCollapsed ? 'right' : 'down'}`} />
         </div>
 
-        {/* Task Tables by Department */}
+        {/* Task Tables by Department, with master grouping if toggled */}
         <section className="tasks-section">
           {sortedGroups.length === 0 ? (
             <div className="empty-msg"><i className="fas fa-tasks" /><p>No tasks match your filters</p></div>
+          ) : allDepartmentsMaster ? (
+            <div className="payment-history-group">
+              {/* Removed duplicate All Departments header */}
+              {!masterCollapsed && sortedGroups.map(group => {
+                const deptKey = group.tasks[0]?.DepId;
+                const isCollapsed = collapsedDepts[deptKey];
+                return (
+                  <div key={deptKey} className={`department-section history-dept${isCollapsed ? ' collapsed' : ''}`}>
+                    <div className="department-label" onClick={() => toggleDept(deptKey)} style={{ cursor: 'pointer' }}>
+                      <i className="fas fa-building" /> {group.deptName}
+                      <span className="badge">{group.tasks.length} tasks</span>
+                      <i className={`fas fa-chevron-${isCollapsed ? 'right' : 'down'} toggle-icon`} />
+                    </div>
+                    {!isCollapsed && (
+                      <div className="table-container">
+                        <table className="department-table">
+                          <thead>
+                            <tr>
+                              <th>Task Name</th>
+                              <th>Planned Date</th>
+                              <th>Days Required</th>
+                              <th>Start Date</th>
+                              <th>Finished Date</th>
+                              <th>Status</th>
+                              <th>Days Delay</th>
+                              <th>Delay Reason</th>
+                              <th>Linked To</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.tasks.map(task => {
+                              const isOwn = task.DepId == deptId;
+                              const isLocked = task.IsFixed === true || task.IsFixed === 1 || task.TimeFinished || !isOwn;
+                              const delayReason = task.DelayReason || '';
+
+                              return (
+                                <tr key={task.TaskID} className={task.IsTaskSelected ? 'active-task-row' : ''}>
+                                  <td data-label="Task Name">{task.TaskName || ''}</td>
+                                  <td data-label="Planned Date">
+                                    <span className="date-display"><i className="fas fa-calendar-alt" /> {formatDateString(task.PlannedDate)}</span>
+                                  </td>
+                                  <td data-label="Days Required">
+                                    {isLocked ? (
+                                      <span className="days-fixed" title={task.TimeFinished ? 'Task is finished' : !isOwn ? 'Not your department' : 'Fixed task'}>
+                                        {task.DaysRequired} <i className="fas fa-lock lock-icon" />
+                                      </span>
+                                    ) : (
+                                      <div className="days-edit-group">
+                                        <input type="number" min="1"
+                                          className="days-input"
+                                          value={editedDays[task.TaskID] ?? task.DaysRequired}
+                                          onChange={e => setEditedDays(prev => ({ ...prev, [task.TaskID]: e.target.value }))}
+                                        />
+                                        {editedDays[task.TaskID] !== undefined && String(editedDays[task.TaskID]) !== String(task.DaysRequired) && (
+                                          <button className="btn-save-sm" onClick={() => handleSaveDaysRequired(task.TaskID)}>
+                                            <i className="fas fa-save" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td data-label="Start Date">
+                                    <span className={`date-display ${task.TimeStarted ? 'has-date' : ''}`}>
+                                      <i className="fas fa-play-circle" /> {formatDateString(task.TimeStarted) || '-'}
+                                    </span>
+                                  </td>
+                                  <td data-label="Finished Date">
+                                    <span className={`date-display ${task.TimeFinished ? 'has-date' : ''}`}>
+                                      <i className="fas fa-check-circle" /> {formatDateString(task.TimeFinished) || '-'}
+                                    </span>
+                                  </td>
+                                  <td data-label="Status">{getStatusBadge(task)}</td>
+                                  <td data-label="Days Delay">
+                                    {task.TimeFinished ? (task.Delay !== null && task.Delay > 0 ? task.Delay : '0') : '-'}
+                                  </td>
+                                  <td data-label="Delay Reason">
+                                    {!isOwn || !task.TimeFinished ? (
+                                      <span className="text-muted">{'\u2014'}</span>
+                                    ) : task.Delay <= 0 ? (
+                                      <span className="text-success">{'\u2713'} On Time</span>
+                                    ) : (
+                                      <div className="delay-reason-cell">
+                                        <span className={delayReason ? 'has-reason' : 'no-reason'}>
+                                          {delayReason || 'No reason provided'}
+                                        </span>
+                                        <button className="btn-edit-reason"
+                                          onClick={() => setDelayModal({ taskId: task.TaskID, currentReason: delayReason })}>
+                                          <i className="fas fa-edit" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td data-label="Linked To">
+                                    {task.linkTasks ? (() => {
+                                      const linked = tasks.find(t => t.TaskID === task.linkTasks);
+                                      return linked ? `${linked.TaskName} (${linked.DeptName})` : 'N/A';
+                                    })() : '-'}
+                                  </td>
+                                  <td data-label="Actions">
+                                    <div className="button-container">{getActionButtons(task)}</div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             sortedGroups.map(group => {
               const deptKey = group.tasks[0]?.DepId;
