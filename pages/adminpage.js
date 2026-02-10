@@ -1,8 +1,41 @@
+// QuickActionsNav component
+function QuickActionsNav() {
+  return (
+    <nav style={{ display: 'flex', alignItems: 'center', marginLeft: 8, width: '100%', justifyContent: 'space-evenly' }}>
+      <style>{`
+        .quick-action-link {
+          color: #1976d2;
+          text-decoration: none;
+          font-weight: 400;
+          font-size: 13px;
+          padding: 6px 18px;
+          border-radius: 4px;
+          transition: background 0.15s, color 0.15s;
+          display: inline-block;
+        }
+        .quick-action-link:hover {
+          background: #e6f0ff;
+          color: #005bab;
+        }
+      `}</style>
+      <a href="/processes" className="quick-action-link">Processes</a>
+      <a href="#" className="quick-action-link">Departments</a>
+      <a href="#" className="quick-action-link">Reports</a>
+    </nav>
+  );
+}
 import { useAdminAuth } from '@/lib/hooks';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 
 export default function AdminPage() {
+        // Filter state for workflows
+        const [workflowStatus, setWorkflowStatus] = useState("");
+        const [workflowProcess, setWorkflowProcess] = useState("");
+        const [workflowProject, setWorkflowProject] = useState("");
+      // Pagination for workflows
+      const [workflowPage, setWorkflowPage] = useState(1);
+      const workflowsPerPage = 10;
     // Filter and search state
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState("");
@@ -600,8 +633,9 @@ export default function AdminPage() {
         }
       `}</style>
 
-      <header className="dashboard-header">
+      <header className="dashboard-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
         <img src="/images/accLogo.png" alt="Company Logo" className="logo" />
+        <QuickActionsNav />
         <div className="header-right">
           <p className="user-info">
             🔐
@@ -629,37 +663,11 @@ export default function AdminPage() {
         </div>
       </header>
 
+
       <main className="main-content">
         <div className="admin-alert">
           <i className="fas fa-shield-alt"></i> <strong>Admin Area</strong> - Only administrators can access this page. Manage users, workflows, and system settings.
         </div>
-
-        <section className="quick-actions">
-          <h3 className="section-title"><i className="fas fa-bolt"></i> Admin Actions</h3>
-          <div className="actions-grid">
-            <a href="#" className="action-btn" title="Add new user">
-              <i className="fas fa-user-plus"></i>
-              <span className="btn-label">Add User</span>
-              <span className="btn-subtitle">Create account</span>
-            </a>
-
-            <a href="/processes" className="action-btn" title="Manage processes">
-              <i className="fas fa-cogs"></i>
-              <span className="btn-label">Processes</span>
-              <span className="btn-subtitle">Process management</span>
-            </a>
-            <a href="#" className="action-btn" title="Manage departments">
-              <i className="fas fa-sitemap"></i>
-              <span className="btn-label">Departments</span>
-              <span className="btn-subtitle">Organization structure</span>
-            </a>
-            <a href="#" className="action-btn" title="View reports">
-              <i className="fas fa-chart-bar"></i>
-              <span className="btn-label">Reports</span>
-              <span className="btn-subtitle">Analytics</span>
-            </a>
-          </div>
-        </section>
 
         {/* Statistics */}
         {stats && (
@@ -995,40 +1003,133 @@ export default function AdminPage() {
           {loadingData ? (
             <p>Loading workflows...</p>
           ) : workflows && workflows.length > 0 ? (
-            <table>
-              <thead>
-                <tr>
-                  <th>Workflow ID</th>
-                  <th>Process</th>
-                  <th>Project</th>
-                  <th>Status</th>
-                  <th>Created Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workflows.map(wf => (
-                  <tr key={wf.WorkFlowID}>
-                    <td>#{wf.WorkFlowID}</td>
-                    <td>{wf.ProcessName || '-'}</td>
-                    <td>{wf.ProjectName || '-'}</td>
-                    <td>
-                      <span className={`badge ${wf.status === 'Active' ? 'active' : 'inactive'}`}>
-                        {wf.status}
-                      </span>
-                    </td>
-                    <td>{new Date(wf.createdDate).toLocaleDateString()}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button>View</button>
-                        <button>Edit</button>
-                        <button>Delete</button>
-                      </div>
-                    </td>
+            <>
+              {/* Filters */}
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', background: '#fff', borderRadius: 8, padding: '12px 18px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #e0e0e0', marginBottom: 18 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 120 }}>
+                  <label style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>Status</label>
+                  <select value={workflowStatus} onChange={e => { setWorkflowStatus(e.target.value); setWorkflowPage(1); }} style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc', fontSize: 14 }}>
+                    <option value="">All</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 120 }}>
+                  <label style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>Process</label>
+                  <select value={workflowProcess} onChange={e => { setWorkflowProcess(e.target.value); setWorkflowPage(1); }} style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc', fontSize: 14 }}>
+                    <option value="">All</option>
+                    {[...new Set(workflows.map(wf => wf.ProcessName).filter(Boolean))].map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 120 }}>
+                  <label style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>Project</label>
+                  <select value={workflowProject} onChange={e => { setWorkflowProject(e.target.value); setWorkflowPage(1); }} style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc', fontSize: 14 }}>
+                    <option value="">All</option>
+                    {[...new Set(workflows.map(wf => wf.ProjectName).filter(Boolean))].map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWorkflowStatus("");
+                    setWorkflowProcess("");
+                    setWorkflowProject("");
+                    setWorkflowPage(1);
+                  }}
+                  style={{ padding: '8px 18px', borderRadius: 6, border: '1px solid #ccc', background: '#f5f5f5', color: '#333', fontWeight: 500, marginTop: 22, height: 38, cursor: 'pointer' }}
+                >
+                  Reset
+                </button>
+              </div>
+              {/* Filtered and paginated table */}
+              <table>
+                <thead>
+                  <tr>
+                    <th>Workflow ID</th>
+                    <th>Process</th>
+                    <th>Project</th>
+                    <th>Status</th>
+                    <th>Created Date</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {workflows
+                    .filter(wf =>
+                      (!workflowStatus || wf.status === workflowStatus) &&
+                      (!workflowProcess || wf.ProcessName === workflowProcess) &&
+                      (!workflowProject || wf.ProjectName === workflowProject)
+                    )
+                    .slice((workflowPage - 1) * workflowsPerPage, workflowPage * workflowsPerPage)
+                    .map(wf => (
+                      <tr key={wf.WorkFlowID}>
+                        <td>#{wf.WorkFlowID}</td>
+                        <td>{wf.ProcessName || '-'}</td>
+                        <td>{wf.ProjectName || '-'}</td>
+                        <td>
+                          <span className={`badge ${wf.status === 'Active' ? 'active' : 'inactive'}`}>
+                            {wf.status}
+                          </span>
+                        </td>
+                        <td>{new Date(wf.createdDate).toLocaleDateString()}</td>
+                        <td>
+                          <div className="action-buttons">
+                            <button>View</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {/* Pagination Controls */}
+              {(() => {
+                const filtered = workflows.filter(wf =>
+                  (!workflowStatus || wf.status === workflowStatus) &&
+                  (!workflowProcess || wf.ProcessName === workflowProcess) &&
+                  (!workflowProject || wf.ProjectName === workflowProject)
+                );
+                return filtered.length > workflowsPerPage ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 20, gap: 8 }}>
+                    <button
+                      onClick={() => setWorkflowPage(p => Math.max(1, p - 1))}
+                      disabled={workflowPage === 1}
+                      style={{ padding: '6px 14px', borderRadius: 4, border: '1px solid #ccc', background: workflowPage === 1 ? '#eee' : '#fff', cursor: workflowPage === 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: Math.ceil(filtered.length / workflowsPerPage) }, (_, i) => (
+                      <button
+                        key={i + 1}
+                        onClick={() => setWorkflowPage(i + 1)}
+                        style={{
+                          padding: '6px 12px',
+                          margin: '0 2px',
+                          borderRadius: 4,
+                          border: '1px solid #ccc',
+                          background: workflowPage === i + 1 ? '#005bab' : '#fff',
+                          color: workflowPage === i + 1 ? '#fff' : '#333',
+                          fontWeight: workflowPage === i + 1 ? 700 : 400,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setWorkflowPage(p => Math.min(Math.ceil(filtered.length / workflowsPerPage), p + 1))}
+                      disabled={workflowPage === Math.ceil(filtered.length / workflowsPerPage)}
+                      style={{ padding: '6px 14px', borderRadius: 4, border: '1px solid #ccc', background: workflowPage === Math.ceil(filtered.length / workflowsPerPage) ? '#eee' : '#fff', cursor: workflowPage === Math.ceil(filtered.length / workflowsPerPage) ? 'not-allowed' : 'pointer' }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                ) : null;
+              })()}
+            </>
           ) : (
             <p>No workflows found</p>
           )}

@@ -8,6 +8,7 @@ export default function UserPage() {
   const router = useRouter();
   const [userTasks, setUserTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [showAllDepartments, setShowAllDepartments] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -88,35 +89,83 @@ export default function UserPage() {
                 <h5 className="mb-0">My Tasks</h5>
               </div>
               <div className="card-body">
+                <div style={{ marginBottom: 16 }}>
+                  <button
+                    className="btn btn-outline-primary btn-sm"
+                    onClick={() => setShowAllDepartments(v => !v)}
+                  >
+                    {showAllDepartments ? 'Show Flat List' : 'Show All Departments'}
+                  </button>
+                </div>
                 {loadingTasks ? (
                   <p>Loading tasks...</p>
                 ) : userTasks && userTasks.length > 0 ? (
-                  <table className="table table-striped table-hover">
-                    <thead>
-                      <tr>
-                        <th>Task ID</th>
-                        <th>Task Name</th>
-                        <th>Priority</th>
-                        <th>Days Required</th>
-                        <th>Department</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {userTasks.map(task => (
-                        <tr key={task.TaskID}>
-                          <td>{task.TaskID}</td>
-                          <td>{task.TaskName}</td>
-                          <td>
-                            <span className={`badge bg-${task.Priority === 'High' ? 'danger' : task.Priority === 'Medium' ? 'warning' : 'info'}`}>
-                              {task.Priority}
-                            </span>
-                          </td>
-                          <td>{task.DaysRequired}</td>
-                          <td>{task.DeptName || '-'}</td>
-                        </tr>
+                  showAllDepartments ? (
+                    <div>
+                      <h5 style={{ fontWeight: 700, color: '#1976d2', marginBottom: 12 }}>All Departments</h5>
+                      {Object.entries(userTasks.reduce((acc, task) => {
+                        const dept = task.DeptName || 'Unknown Department';
+                        if (!acc[dept]) acc[dept] = [];
+                        acc[dept].push(task);
+                        return acc;
+                      }, {})).map(([dept, tasks]) => (
+                        <div key={dept} style={{ marginBottom: 24 }}>
+                          <h6 style={{ fontWeight: 600, color: '#333', marginBottom: 8 }}>{dept}</h6>
+                          <table className="table table-striped table-hover">
+                            <thead>
+                              <tr>
+                                <th>Task ID</th>
+                                <th>Task Name</th>
+                                <th>Priority</th>
+                                <th>Days Required</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tasks.map(task => (
+                                <tr key={task.TaskID}>
+                                  <td>{task.TaskID}</td>
+                                  <td>{task.TaskName}</td>
+                                  <td>
+                                    <span className={`badge bg-${task.Priority === 'High' ? 'danger' : task.Priority === 'Medium' ? 'warning' : 'info'}`}>
+                                      {task.Priority}
+                                    </span>
+                                  </td>
+                                  <td>{task.DaysRequired}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  ) : (
+                    <table className="table table-striped table-hover">
+                      <thead>
+                        <tr>
+                          <th>Task ID</th>
+                          <th>Task Name</th>
+                          <th>Priority</th>
+                          <th>Days Required</th>
+                          <th>Department</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userTasks.map(task => (
+                          <tr key={task.TaskID}>
+                            <td>{task.TaskID}</td>
+                            <td>{task.TaskName}</td>
+                            <td>
+                              <span className={`badge bg-${task.Priority === 'High' ? 'danger' : task.Priority === 'Medium' ? 'warning' : 'info'}`}>
+                                {task.Priority}
+                              </span>
+                            </td>
+                            <td>{task.DaysRequired}</td>
+                            <td>{task.DeptName || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
                 ) : (
                   <p className="text-muted">No tasks assigned</p>
                 )}
