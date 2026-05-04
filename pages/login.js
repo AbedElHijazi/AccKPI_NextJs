@@ -1,10 +1,10 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/hooks';
+import { useSession } from '@/lib/AuthContext';
 
 export default function Login() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth(null);
+  const { refetch: refetchSession } = useSession();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [project, setProject] = useState('1');
@@ -13,35 +13,22 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If already logged in, redirect to appropriate dashboard
-    if (!authLoading && user) {
-      router.push(user.usrAdmin ? '/adminpage' : '/workflowdashboard');
-      return;
-    }
-
-    // Load projects
     async function loadProjects() {
       try {
         const response = await fetch('/api/projects');
         if (response.ok) {
           const data = await response.json();
-          console.log('Projects loaded:', data);
           setProjects(data);
           if (data.length > 0) {
             setProject(data[0].ProjectID?.toString());
           }
-        } else {
-          console.error('Failed to load projects:', response.status);
         }
       } catch (err) {
         console.error('Failed to load projects:', err);
       }
     }
-    
-    if (!user && !authLoading) {
-      loadProjects();
-    }
-  }, [user, authLoading, router]);
+    loadProjects();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,8 +54,12 @@ export default function Login() {
       // Successful login - log user info for debugging
       console.log('User is admin:', data.user?.usrAdmin);
       console.log('Redirecting to:', data.redirect);
-      
-      // Successful login
+
+      try {
+        await refetchSession();
+      } catch (e) {
+        console.error('Session refresh after login:', e);
+      }
       router.push(data.redirect || '/');
     } catch (err) {
       setError('An error occurred during login');

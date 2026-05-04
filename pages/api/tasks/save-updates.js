@@ -23,25 +23,73 @@ export default async function handler(req, res) {
       if (field === 'daysRequired') {
         const check = await pool.request()
           .input('taskId', sql.Int, taskId)
-          .query('SELECT IsFixed, PlannedDate FROM tblTasks WHERE TaskID = @taskId');
+          .query('SELECT IsFixed, WorkFlowHdrID FROM tblTasks WHERE TaskID = @taskId');
 
         const task = check.recordset[0];
         if (!task?.IsFixed) {
+          const days = Number(value);
+          if (!Number.isFinite(days) || days < 1) {
+            return res.status(400).json({ error: 'Days required must be a number ≥ 1' });
+          }
+
+          const blockResult = await pool.request()
+            .input('taskId', sql.Int, taskId)
+            .query(`
+              SELECT CAST(CASE WHEN EXISTS (
+                SELECT 1
+                FROM tblTasks t2
+                INNER JOIN tblWorkflowDtl wd ON wd.TaskID = t2.TaskID
+                  AND wd.workFlowHdrId = (SELECT WorkFlowHdrID FROM tblTasks WHERE TaskID = @taskId)
+                INNER JOIN tblWorkflowHdr h2 ON h2.WorkFlowID = t2.WorkFlowHdrID
+                INNER JOIN tblProcessDepartment pd2 ON pd2.DepartmentID = t2.DepId AND pd2.ProcessID = h2.ProcessID
+                CROSS APPLY (
+                  SELECT pd.StepOrder AS so, t.Priority AS pri, t.TaskID AS tid
+                  FROM tblTasks t
+                  INNER JOIN tblWorkflowHdr h ON h.WorkFlowID = t.WorkFlowHdrID
+                  INNER JOIN tblProcessDepartment pd ON pd.DepartmentID = t.DepId AND pd.ProcessID = h.ProcessID
+                  WHERE t.TaskID = @taskId
+                ) cur
+                WHERE t2.TaskID <> @taskId
+                  AND t2.WorkFlowHdrID = (SELECT WorkFlowHdrID FROM tblTasks WHERE TaskID = @taskId)
+                  AND wd.TimeFinished IS NULL
+                  AND (
+                    pd2.StepOrder < cur.so
+                    OR (pd2.StepOrder = cur.so AND t2.Priority < cur.pri)
+                    OR (pd2.StepOrder = cur.so AND t2.Priority = cur.pri AND t2.TaskID < cur.tid)
+                  )
+              ) THEN 1 ELSE 0 END AS bit) AS Blocked
+            `);
+          if (blockResult.recordset[0]?.Blocked) {
+            return res.status(400).json({
+              error: 'Finish earlier workflow tasks (by step / priority) before changing days required.'
+            });
+          }
+
+          // PlannedDate = latest finished calendar day on this workflow (tblWorkflowDtl) + DaysRequired.
+          // Excludes this task's own finish. If nothing finished yet, base = today.
           await pool.request()
             .input('taskId', sql.Int, taskId)
-            .input('value', sql.Int, value)
-            .query('UPDATE tblTasks SET DaysRequired = @value WHERE TaskID = @taskId');
-
-          if (task?.PlannedDate !== null) {
-            await pool.request()
-              .input('taskId', sql.Int, taskId)
-              .input('days', sql.Int, value)
-              .query(`
-                UPDATE tblTasks 
-                SET PlannedDate = DATEADD(DAY, @days + 1, CAST(GETDATE() AS DATE))
-                WHERE TaskID = @taskId
-              `);
-          }
+            .input('days', sql.Int, days)
+            .query(`
+              UPDATE t
+              SET
+                t.DaysRequired = @days,
+                t.PlannedDate = DATEADD(
+                  DAY,
+                  @days,
+                  CAST(COALESCE(
+                    (SELECT MAX(CAST(wd.TimeFinished AS date))
+                     FROM tblWorkflowDtl wd
+                     WHERE wd.workFlowHdrId = t.WorkFlowHdrID
+                       AND t.WorkFlowHdrID IS NOT NULL
+                       AND wd.TimeFinished IS NOT NULL
+                       AND wd.TaskID <> @taskId),
+                    CAST(GETDATE() AS date)
+                  ) AS date)
+                )
+              FROM tblTasks t
+              WHERE t.TaskID = @taskId
+            `);
         }
       }
 

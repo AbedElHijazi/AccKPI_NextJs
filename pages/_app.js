@@ -1,7 +1,9 @@
+import { AppAuth } from '@/lib/AuthContext';
+
 export default function App({ Component, pageProps }) {
   return (
-    <div>
+    <AppAuth>
       <Component {...pageProps} />
-    </div>
+    </AppAuth>
   );
 }

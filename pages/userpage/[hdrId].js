@@ -52,6 +52,77 @@ const getDateInputValue = (dateStr) => {
   return d.toISOString().split('T')[0];
 };
 
+/** Latest calendar day among completed tasks (YYYY-MM-DD), for sequencing start dates. */
+const getLatestTimeFinishedDateStr = (taskList) => {
+  if (!Array.isArray(taskList)) return null;
+  let latest = null;
+  for (const t of taskList) {
+    if (!t?.TimeFinished) continue;
+    const d = getDateInputValue(t.TimeFinished);
+    if (!d) continue;
+    if (!latest || d > latest) latest = d;
+  }
+  return latest;
+};
+
+const compareWorkflowOrder = (a, b) =>
+  (Number(a?.StepOrder ?? 9999) - Number(b?.StepOrder ?? 9999))
+  || (Number(a?.Priority ?? 9999) - Number(b?.Priority ?? 9999))
+  || (Number(a?.TaskID) - Number(b?.TaskID));
+
+/** True if any task that sorts strictly before `task` still has no finish date (same workflow list). */
+const hasUnfinishedWorkflowPredecessor = (task, workflowTaskList) => {
+  if (!task || !Array.isArray(workflowTaskList)) return false;
+  return workflowTaskList.some(
+    (t) =>
+      t.TaskID !== task.TaskID
+      && compareWorkflowOrder(t, task) < 0
+      && !t.TimeFinished
+  );
+};
+
+function DateModalBody({ dateModal, onCancel, onConfirm, showError }) {
+  const [val, setVal] = useState(() => dateModal.defaultValue || '');
+  const min = dateModal.minDate || '1900-01-01';
+  const max = dateModal.maxDate || '9999-12-31';
+  /** Start + finish pickers: cannot confirm outside [min, max] (finish min = task start date). */
+  const confirmDisabled = !val || val < min || val > max;
+
+  return (
+    <>
+      <div className="modal-title"><i className="fas fa-calendar" /> {dateModal.title}</div>
+      <p className="modal-hint">{dateModal.hint}</p>
+      <input
+        type="date"
+        id="date-modal-input"
+        className="modal-date-input"
+        min={dateModal.minDate}
+        max={dateModal.maxDate}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+      />
+      <div className="modal-actions">
+        <button type="button" className="btn-cancel" onClick={onCancel}>Cancel</button>
+        <button
+          type="button"
+          className="btn-confirm"
+          disabled={confirmDisabled}
+          onClick={() => {
+            if (!val) return;
+            if (val < min || val > max) {
+              showError(`Date must be on or after ${min} and on or before ${max}.`);
+              return;
+            }
+            onConfirm(val);
+          }}
+        >
+          Confirm
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────
 
 export default function WorkflowUserPage() {
@@ -149,10 +220,6 @@ export default function WorkflowUserPage() {
     }
   }, [hdrId]);
 
-  useEffect(() => {
-    if (!authLoading && !user) router.push('/login');
-  }, [authLoading, user, router]);
-
   useEffect(() => { fetchData(); }, [fetchData]);
   // ─── Task History ────────────────────────────────────────────
 
@@ -221,19 +288,47 @@ export default function WorkflowUserPage() {
 
   // ─── Date Picker Modal (Promise-based) ───────────────────────
 
-  const showDatePicker = (title, minDateStr = null) => {
+  /**
+   * @param {string} title
+   * @param {string|null|{ minDate?: string, maxDate?: string, defaultValue?: string, hint?: string }} [options]
+   *   Pass a string (min start date for finish flow), null/omit for default start picker, or an object to set min+max (e.g. start date floored by last TimeFinished).
+   */
+  const showDatePicker = (title, options = null) => {
     return new Promise((resolve, reject) => {
       const now = new Date();
       const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      setDateModal({
-        title,
-        minDate: minDateStr || '1900-01-01',
-        maxDate: minDateStr ? '9999-12-31' : today,
-        defaultValue: minDateStr || today,
-        hint: minDateStr
-          ? `Finish date must be on or after start date (${minDateStr})`
-          : 'You can backdate start date'
-      });
+
+      let minDate = '1900-01-01';
+      let maxDate = today;
+      let defaultValue = today;
+      let hint = 'You can backdate start date';
+
+      if (options != null && typeof options === 'string') {
+        const minDateStr = options;
+        minDate = minDateStr || '1900-01-01';
+        maxDate = minDateStr ? '9999-12-31' : today;
+        // Finish task: default picker to today (still constrained by min = start date).
+        defaultValue = minDateStr
+          ? (today >= minDateStr ? today : minDateStr)
+          : today;
+        hint = minDateStr
+          ? `Finish date must be on or after start date (${minDateStr}); default is today`
+          : 'You can backdate start date';
+      } else if (options != null && typeof options === 'object') {
+        minDate = options.minDate || '1900-01-01';
+        maxDate = options.maxDate ?? today;
+        if (minDate > maxDate) {
+          minDate = maxDate;
+        }
+        defaultValue = options.defaultValue
+          ?? (today >= minDate && today <= maxDate ? today : minDate);
+        hint = options.hint
+          ?? (minDate !== '1900-01-01'
+            ? `Date must be from ${minDate} through ${maxDate}`
+            : 'You can backdate start date');
+      }
+
+      setDateModal({ title, minDate, maxDate, defaultValue, hint });
       dateResolveRef.current = resolve;
       dateRejectRef.current = reject;
     });
@@ -248,7 +343,33 @@ export default function WorkflowUserPage() {
     if (!wfId) return showError('Workflow ID not found');
 
     try {
-      const selectedDate = await showDatePicker('Select Start Date');
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const latestFinish = getLatestTimeFinishedDateStr(
+        tasks.filter(t => t.TaskID !== Number(taskId))
+      );
+      let selectedDate;
+      if (latestFinish) {
+        if (latestFinish > today) {
+          showError('Last finished task date is after today; cannot pick a valid start date.');
+          return;
+        }
+        selectedDate = await showDatePicker('Select Start Date', {
+          minDate: latestFinish,
+          maxDate: today,
+          hint: `Start date cannot be before the last finished task (${formatDateString(latestFinish)})`
+        });
+      } else {
+        selectedDate = await showDatePicker('Select Start Date');
+      }
+      if (latestFinish && (selectedDate < latestFinish || selectedDate > today)) {
+        showError('Start date must be on or after the last finished task and not after today.');
+        return;
+      }
+      if (!latestFinish && selectedDate > today) {
+        showError('Start date cannot be after today.');
+        return;
+      }
       const res = await fetch('/api/tasks/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -319,6 +440,10 @@ export default function WorkflowUserPage() {
   const handleSaveDaysRequired = async (taskId) => {
     const newVal = editedDays[taskId];
     if (!newVal || newVal < 1) return showError('Days must be at least 1');
+    const taskRow = tasks.find((t) => t.TaskID === Number(taskId));
+    if (taskRow && hasUnfinishedWorkflowPredecessor(taskRow, tasks)) {
+      return showError('Finish earlier workflow tasks (by step / priority) before changing days required.');
+    }
     try {
       const res = await fetch('/api/tasks/save-updates', {
         method: 'PUT',
@@ -327,7 +452,10 @@ export default function WorkflowUserPage() {
           updates: [{ taskId: Number(taskId), field: 'daysRequired', value: Number(newVal), usrID: userId }]
         })
       });
-      if (!res.ok) throw new Error('Failed to save');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to save');
+      }
       showSuccess('Days required updated');
       setEditedDays(prev => { const n = { ...prev }; delete n[taskId]; return n; });
       fetchData();
@@ -477,15 +605,15 @@ export default function WorkflowUserPage() {
 
   // ─── Loading / Error States ────────────────────────────────
 
-  if (authLoading || loading) {
-    return (
-      <Layout>
-        <div className="loading-container"><div className="spinner-anim"></div><p>Loading workflow details...</p></div>
-        <style jsx>{styles}</style>
-      </Layout>
-    );
-  }
-
+  // if (authLoading || loading) {
+  //   return (
+  //     <Layout>
+  //       <div className="loading-container"><div className="spinner-anim"></div><p>Loading workflow details...</p></div>
+  //       <style jsx>{styles}</style>
+  //     </Layout>
+  //   );
+  // }
+  if(!loading && !authLoading){
   if (error) {
     return (
       <Layout>
@@ -509,6 +637,7 @@ export default function WorkflowUserPage() {
       </Layout>
     );
   }
+}
 
   // ─── History Grouping ──────────────────────────────────────
 
@@ -529,13 +658,20 @@ export default function WorkflowUserPage() {
 
   const historyPayments = [...new Set(taskHistory.map(t => t.PaymentStep))].sort((a, b) => a - b);
 
-
-  console.log(sortedGroups)
   // ─── RENDER ────────────────────────────────────────────────
 
   return (
     <Layout user={user}>
-      <main className="workflow-user-page">
+      {(authLoading || loading) && (
+        <div className="loading-container" aria-busy="true" aria-live="polite">
+          <div className="loading-container-inner">
+            <div className="spinner-anim" />
+            <p>Loading workflow details...</p>
+          </div>
+        </div>
+      )}
+
+      <main className={`workflow-user-page${authLoading || loading ? ' workflow-user-page--loading' : ''}`}>
         {/* Toast Messages */}
         {successMsg && <div className="toast toast-success"><i className="fas fa-check-circle" /> {successMsg}</div>}
         {errorMsg && <div className="toast toast-error"><i className="fas fa-exclamation-circle" /> {errorMsg}</div>}
@@ -723,6 +859,17 @@ export default function WorkflowUserPage() {
                             {group.tasks.map(task => {
                               const isOwn = task.DepId == deptId;
                               const isLocked = task.IsFixed === true || task.IsFixed === 1 || task.TimeFinished || !isOwn;
+                              const daysLockedByPredecessor = hasUnfinishedWorkflowPredecessor(task, tasks);
+                              const daysReadOnly = isLocked || daysLockedByPredecessor;
+                              const daysLockTitle = !isOwn
+                                ? 'Not your department'
+                                : task.TimeFinished
+                                  ? 'Task is finished'
+                                  : task.IsFixed === true || task.IsFixed === 1
+                                    ? 'Fixed task'
+                                    : daysLockedByPredecessor
+                                      ? 'Earlier workflow tasks must be finished first (step / priority order)'
+                                      : '';
                               const delayReason = task.DelayReason || '';
 
                               return (
@@ -732,8 +879,8 @@ export default function WorkflowUserPage() {
                                     <span className="date-display"><i className="fas fa-calendar-alt" /> {formatDateString(task.PlannedDate)}</span>
                                   </td>
                                   <td data-label="Days Required">
-                                    {isLocked ? (
-                                      <span className="days-fixed" title={task.TimeFinished ? 'Task is finished' : !isOwn ? 'Not your department' : 'Fixed task'}>
+                                    {daysReadOnly ? (
+                                      <span className="days-fixed" title={daysLockTitle}>
                                         {task.DaysRequired} <i className="fas fa-lock lock-icon" />
                                       </span>
                                     ) : (
@@ -835,6 +982,17 @@ export default function WorkflowUserPage() {
                           {group.tasks.map(task => {
                             const isOwn = task.DepId == deptId;
                             const isLocked = task.IsFixed === true || task.IsFixed === 1 || task.TimeFinished || !isOwn;
+                            const daysLockedByPredecessor = hasUnfinishedWorkflowPredecessor(task, tasks);
+                            const daysReadOnly = isLocked || daysLockedByPredecessor;
+                            const daysLockTitle = !isOwn
+                              ? 'Not your department'
+                              : task.TimeFinished
+                                ? 'Task is finished'
+                                : task.IsFixed === true || task.IsFixed === 1
+                                  ? 'Fixed task'
+                                  : daysLockedByPredecessor
+                                    ? 'Earlier workflow tasks must be finished first (step / priority order)'
+                                    : '';
                             const delayReason = task.DelayReason || '';
 
                             return (
@@ -844,8 +1002,8 @@ export default function WorkflowUserPage() {
                                   <span className="date-display"><i className="fas fa-calendar-alt" /> {formatDateString(task.PlannedDate)}</span>
                                 </td>
                                 <td data-label="Days Required">
-                                  {isLocked ? (
-                                    <span className="days-fixed" title={task.TimeFinished ? 'Task is finished' : !isOwn ? 'Not your department' : 'Fixed task'}>
+                                  {daysReadOnly ? (
+                                    <span className="days-fixed" title={daysLockTitle}>
                                       {task.DaysRequired} <i className="fas fa-lock lock-icon" />
                                     </span>
                                   ) : (
@@ -998,17 +1156,13 @@ export default function WorkflowUserPage() {
         {dateModal && (
           <div className="modal-overlay" onClick={() => { dateRejectRef.current?.(new Error('Cancelled')); setDateModal(null); }}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <div className="modal-title"><i className="fas fa-calendar" /> {dateModal.title}</div>
-              <p className="modal-hint">{dateModal.hint}</p>
-              <input type="date" id="date-modal-input" className="modal-date-input"
-                min={dateModal.minDate} max={dateModal.maxDate} defaultValue={dateModal.defaultValue} />
-              <div className="modal-actions">
-                <button className="btn-cancel" onClick={() => { dateRejectRef.current?.(new Error('Cancelled')); setDateModal(null); }}>Cancel</button>
-                <button className="btn-confirm" onClick={() => {
-                  const val = document.getElementById('date-modal-input').value;
-                  if (val) { dateResolveRef.current?.(val); setDateModal(null); }
-                }}>Confirm</button>
-              </div>
+              <DateModalBody
+                key={`${dateModal.minDate}|${dateModal.maxDate}|${dateModal.defaultValue}|${dateModal.title}`}
+                dateModal={dateModal}
+                showError={showError}
+                onCancel={() => { dateRejectRef.current?.(new Error('Cancelled')); setDateModal(null); }}
+                onConfirm={(picked) => { dateResolveRef.current?.(picked); setDateModal(null); }}
+              />
             </div>
           </div>
         )}
@@ -1321,15 +1475,43 @@ const styles = `
   .btn-cancel { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
   .btn-cancel:hover { background: #e2e8f0; }
   .btn-confirm { background: #3b82f6; color: white; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
-  .btn-confirm:hover { background: #2563eb; }
+  .btn-confirm:hover:not(:disabled) { background: #2563eb; }
+  .btn-confirm:disabled { opacity: 0.45; cursor: not-allowed; }
   .delay-textarea { width: 100%; min-height: 100px; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; resize: vertical; margin-bottom: 1rem; font-family: inherit; box-sizing: border-box; }
   .delay-modal-desc { color: #64748b; font-size: 0.85rem; margin-bottom: 0.75rem; }
 
   /* Misc */
   .empty-msg { text-align: center; padding: 3rem; color: #94a3b8; }
   .empty-msg i { font-size: 2rem; margin-bottom: 0.5rem; display: block; }
-  .loading-container, .error-container { text-align: center; padding: 3rem 2rem; background: white; border-radius: 8px; margin: 2rem; }
-  .spinner-anim { width: 40px; height: 40px; margin: 0 auto 1rem; border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .loading-container {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    margin: 0;
+    padding: 1rem;
+    background: transparent;
+    backdrop-filter: blur(3px);
+  }
+  .loading-container-inner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background: white;
+    padding: 2rem 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
+    min-width: 220px;
+  }
+  .loading-container-inner p {
+    margin: 0.75rem 0 0;
+    color: #64748b;
+    font-size: 0.95rem;
+  }
+  .workflow-user-page--loading { pointer-events: none; user-select: none; }
+  .error-container { text-align: center; padding: 3rem 2rem; background: white; border-radius: 8px; margin: 2rem; }
+  .spinner-anim { width: 40px; height: 40px; margin: 0 auto; border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   .alert-danger { background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
   .alert-warning { background: #fef3c7; color: #92400e; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }

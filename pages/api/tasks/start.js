@@ -56,10 +56,24 @@ export default async function handler(req, res) {
       if (!currentPlannedDate) {
         await transaction.request()
           .input('taskId', sql.Int, taskId)
+          .input('workFlowHdrId', sql.Int, workFlowHdrId)
+          .input('startDateOnly', sql.VarChar(30), startDateOnly)
           .query(`
-            UPDATE tblTasks
-            SET PlannedDate = DATEADD(DAY, DaysRequired, CAST(GETDATE() AS DATE))
-            WHERE TaskID = @taskId
+            UPDATE t
+            SET PlannedDate = DATEADD(
+              DAY,
+              t.DaysRequired,
+              CAST(COALESCE(
+                (SELECT MAX(CAST(wd.TimeFinished AS date))
+                 FROM tblWorkflowDtl wd
+                 WHERE wd.workFlowHdrId = @workFlowHdrId
+                   AND wd.TimeFinished IS NOT NULL
+                   AND wd.TaskID <> @taskId),
+                CAST(@startDateOnly AS date)
+              ) AS date)
+            )
+            FROM tblTasks t
+            WHERE t.TaskID = @taskId
           `);
       }
 

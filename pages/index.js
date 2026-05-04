@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/hooks';
 
 export default function Home() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth(null);
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState({
     packages: 0,
     processes: 0,
