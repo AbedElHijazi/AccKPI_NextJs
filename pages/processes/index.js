@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAdminAuth } from '@/lib/hooks';
+import { logout } from '@/lib/logout';
 
 export default function ProcessesPage() {
   const router = useRouter();
@@ -646,6 +647,19 @@ export default function ProcessesPage() {
           box-shadow: var(--shadow);
         }
 
+        .btn-outline {
+          background-color: transparent;
+          color: var(--primary);
+          border: 2px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+          background-color: var(--primary);
+          color: white;
+          transform: translateY(-2px);
+          box-shadow: var(--shadow);
+        }
+
         .btn-danger {
           background-color: var(--danger);
           color: white;
@@ -1207,6 +1221,9 @@ export default function ProcessesPage() {
               <i className="fas fa-cogs"></i>
               Process Management
             </h1>
+            <button type="button" onClick={logout} className="btn btn-outline">
+              Logout
+            </button>
           </div>
 
           {/* Create Process Form */}

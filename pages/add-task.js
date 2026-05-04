@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAdminAuth } from '@/lib/hooks';
+import { logout } from '@/lib/logout';
 
 export default function AddTaskPage() {
   const router = useRouter();
@@ -696,11 +697,14 @@ export default function AddTaskPage() {
 
       <div className="add-task-container">
         <div className="navigation-buttons">
-          <button className="btn btn-secondary" onClick={() => router.push('/processes')}>
+          <button type="button" className="btn btn-secondary" onClick={() => router.push('/processes')}>
             <i className="fas fa-arrow-left"></i> Back
           </button>
-          <button className="btn btn-primary" onClick={() => router.push('/workflowdashboard')}>
+          <button type="button" className="btn btn-primary" onClick={() => router.push('/workflowdashboard')}>
             <i className="fas fa-plus"></i> Create Workflow
+          </button>
+          <button type="button" className="btn btn-outline" style={{ marginLeft: 'auto' }} onClick={logout}>
+            <i className="fas fa-sign-out-alt"></i> Logout
           </button>
         </div>
 

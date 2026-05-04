@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import { logout } from '@/lib/logout';
 
 export default function AddWorkflow() {
   const router = useRouter();
@@ -294,9 +295,14 @@ export default function AddWorkflow() {
       </Head>
 
       <div style={styles.container}>
-        <button onClick={handleBack} style={styles.backBtn}>
-          <span>←</span> Back
-        </button>
+        <div style={styles.topBar}>
+          <button type="button" onClick={handleBack} style={styles.backBtn}>
+            <span>←</span> Back
+          </button>
+          <button type="button" onClick={logout} className="btn btn-outline-danger">
+            Logout
+          </button>
+        </div>
 
         <h1 style={styles.title}>
           <span style={styles.icon}>⊕</span>
@@ -541,6 +547,14 @@ const styles = {
     padding: '40px 20px',
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
   },
+  topBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    gap: '10px'
+  },
   backBtn: {
     display: 'flex',
     alignItems: 'center',
@@ -551,7 +565,6 @@ const styles = {
     color: '#0066cc',
     cursor: 'pointer',
     fontSize: '14px',
-    marginBottom: '20px',
     transition: 'color 0.2s'
   },
   title: {

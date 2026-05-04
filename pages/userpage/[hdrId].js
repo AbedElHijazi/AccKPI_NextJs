@@ -154,7 +154,6 @@ export default function WorkflowUserPage() {
   }, [authLoading, user, router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
   // ─── Task History ────────────────────────────────────────────
 
   const fetchHistory = useCallback(async () => {
@@ -501,7 +500,7 @@ export default function WorkflowUserPage() {
 
   if (!workflow) {
     return (
-      <Layout>
+      <Layout user={user}>
         <div className="error-container">
           <div className="alert-warning">Workflow not found</div>
           <button onClick={() => router.back()} className="btn-primary">Go Back</button>
@@ -530,10 +529,12 @@ export default function WorkflowUserPage() {
 
   const historyPayments = [...new Set(taskHistory.map(t => t.PaymentStep))].sort((a, b) => a - b);
 
+
+  console.log(sortedGroups)
   // ─── RENDER ────────────────────────────────────────────────
 
   return (
-    <Layout>
+    <Layout user={user}>
       <main className="workflow-user-page">
         {/* Toast Messages */}
         {successMsg && <div className="toast toast-success"><i className="fas fa-check-circle" /> {successMsg}</div>}

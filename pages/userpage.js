@@ -44,7 +44,7 @@ export default function UserPage() {
   }
 
   return (
-    <Layout>
+    <Layout user={user}>
       <div className="container-fluid p-4">
         <div className="alert alert-info alert-dismissible fade show" role="alert">
           <strong>👤 User Area</strong> - View your profile and assigned tasks
