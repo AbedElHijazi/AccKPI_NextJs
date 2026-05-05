@@ -1,5 +1,6 @@
 import sql from 'mssql';
 import { getPool } from '@/lib/db';
+import { sendNextDepartmentHandoffNotification } from '@/lib/departmentHandoffEmail';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,6 +15,7 @@ export default async function handler(req, res) {
 
   try {
     const pool = await getPool();
+    let notifiedNextDepartment = false;
 
     // Extract just the date part (YYYY-MM-DD) to avoid timezone shifts
     const finishDateOnly = finishTime.split('T')[0].split(' ')[0];
@@ -21,13 +23,26 @@ export default async function handler(req, res) {
     // Get task info
     const taskResult = await pool.request()
       .input('taskId', sql.Int, taskId)
-      .query(`SELECT t.PlannedDate, t.DepId, t.DaysRequired FROM tblTasks t WHERE t.TaskID = @taskId`);
+      .query(`
+        SELECT t.PlannedDate, t.DepId, t.DaysRequired, t.proccessID AS TaskProcessID
+        FROM tblTasks t
+        WHERE t.TaskID = @taskId
+      `);
 
     if (taskResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    const { PlannedDate, DepId, DaysRequired } = taskResult.recordset[0];
+    const { PlannedDate, DepId, DaysRequired, TaskProcessID } = taskResult.recordset[0];
+    let effectiveProcessId = Number(processID || TaskProcessID) || null;
+    let handoffReason = null;
+
+    if (!effectiveProcessId) {
+      const hdrProcessResult = await pool.request()
+        .input('workFlowHdrId', sql.Int, workFlowHdrId)
+        .query('SELECT processID FROM tblWorkflowHdr WHERE workFlowID = @workFlowHdrId');
+      effectiveProcessId = Number(hdrProcessResult.recordset[0]?.processID) || null;
+    }
 
     // Calculate delay using date-only strings to avoid timezone issues
     const plannedStr = PlannedDate ? (typeof PlannedDate === 'string' ? PlannedDate.split('T')[0].split(' ')[0] : PlannedDate.toISOString().split('T')[0]) : finishDateOnly;
@@ -140,6 +155,7 @@ export default async function handler(req, res) {
       `);
 
     if (nextTaskResult.recordset.length > 0) {
+      console.log('nextTaskResult', nextTaskResult.recordset[0]);
       const nextTaskId = nextTaskResult.recordset[0].TaskID;
       const nextTaskDays = Number(nextTaskResult.recordset[0].DaysRequired) || 1;
 
@@ -172,10 +188,17 @@ export default async function handler(req, res) {
         WHERE t.DepId = @depId AND w.workFlowHdrId = @workFlowHdrId AND w.TimeFinished IS NULL
       `);
 
-    if (remaining.recordset[0].Remaining === 0 && processID) {
+    console.log('department completion check', {
+      workFlowHdrId,
+      depId: DepId,
+      remaining: remaining.recordset[0]?.Remaining,
+      effectiveProcessId,
+    });
+
+    if (remaining.recordset[0].Remaining === 0 && effectiveProcessId) {
       const processInfo = await pool.request()
         .input('depId', sql.Int, DepId)
-        .input('processID', sql.Int, processID)
+        .input('processID', sql.Int, effectiveProcessId)
         .query(`SELECT ProcessID, StepOrder FROM tblProcessDepartment WHERE DepartmentID = @depId AND ProcessID = @processID`);
 
       if (processInfo.recordset.length > 0) {
@@ -186,7 +209,7 @@ export default async function handler(req, res) {
           .input('nextStep', sql.Int, StepOrder + 1)
           .query(`SELECT DepartmentID FROM tblProcessDepartment WHERE ProcessID = @processId AND StepOrder = @nextStep`);
 
-        if (nextDeptInfoResult.recordset.length > 0) {
+        // if (nextDeptInfoResult.recordset.length > 0) {
           const nextDepId = nextDeptInfoResult.recordset[0].DepartmentID;
 
           await pool.request()
@@ -249,8 +272,33 @@ export default async function handler(req, res) {
               .input('nextDeptTaskId', sql.Int, nextDeptTaskId)
               .query(`UPDATE tblTasks SET PlannedDate = CAST(@plannedDate AS DATE) WHERE TaskID = @nextDeptTaskId`);
           }
-        }
+
+          try {
+            const handoff = await sendNextDepartmentHandoffNotification(pool, {
+              workFlowHdrId,
+              priorDepId: DepId,
+              nextDepId,
+              finishDateOnly,
+              finishedTaskId: taskId,
+            });
+            if (handoff?.sent) {
+              notifiedNextDepartment = true;
+            } else {
+              handoffReason = handoff?.reason || 'email-not-sent';
+              console.warn('Next department handoff email not sent:', handoff);
+            }
+          } catch (emailErr) {
+            handoffReason = emailErr?.message || 'email-error';
+            console.error('Next department handoff email error:', emailErr);
+          }
+        // } else {
+        //   handoffReason = 'no-next-department-step';
+        // }
+      } else {
+        handoffReason = 'process-department-mapping-missing';
       }
+    } else if (remaining.recordset[0].Remaining === 0 && !effectiveProcessId) {
+      handoffReason = 'missing-process-id';
     }
 
     // Auto-advance payment steps if all tasks complete
@@ -356,7 +404,11 @@ export default async function handler(req, res) {
       console.error('Error advancing workflow steps:', advanceError);
     }
 
-    res.status(200).json({ message: 'Task finished successfully' });
+    res.status(200).json({
+      message: 'Task finished successfully',
+      notifiedNextDepartment,
+      handoffReason,
+    });
   } catch (error) {
     console.error('Error finishing task:', error);
     res.status(500).json({ error: 'Failed to finish task' });

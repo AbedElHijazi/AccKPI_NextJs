@@ -393,6 +393,7 @@ export default function WorkflowUserPage() {
     if (!task) return showError('Task not found');
     const wfId = task.WorkFlowHdrID || task.workFlowHdrId || hdrId;
     if (!wfId) return showError('Workflow ID not found');
+    const processId = Number(task.NumberOfProccessID || task.ProcessID || task.proccessID) || null;
 
     try {
       let startDate = null;
@@ -407,11 +408,16 @@ export default function WorkflowUserPage() {
           taskId: Number(taskId),
           finishTime: selectedDate,
           workFlowHdrId: Number(wfId),
-          processID: task.NumberOfProccessID || task.ProcessID
+          processID: processId
         })
       });
-      if (!res.ok) throw new Error('Failed to finish task');
-      showSuccess('Task marked as finished');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to finish task');
+      showSuccess(
+        data.notifiedNextDepartment
+          ? 'Task marked as finished. The next department was notified by email.'
+          : 'Task marked as finished'
+      );
       setTimeout(() => fetchData(), 500);
     } catch (err) {
       if (err.message !== 'Cancelled') showError(err.message);
@@ -539,6 +545,20 @@ export default function WorkflowUserPage() {
     link.click();
     document.body.removeChild(link);
     showSuccess('Exported to CSV');
+  };
+
+  const handleSendSmtpTestEmail = async () => {
+    try {
+      const res = await fetch('/api/tasks/send-smtp-test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to send SMTP test email');
+      showSuccess(`Test email sent: ${data.from} -> ${data.to}`);
+    } catch (err) {
+      showError(err.message || 'Failed to send SMTP test email');
+    }
   };
 
   // ─── Toggle helpers ────────────────────────────────────────
@@ -689,6 +709,7 @@ export default function WorkflowUserPage() {
           </div>
           <div className="header-right">
             <button onClick={() => router.back()} className="action-btn"><i className="fas fa-arrow-left" /> Back</button>
+            <button onClick={handleSendSmtpTestEmail} className="action-btn"><i className="fas fa-paper-plane" /> Send Test Email</button>
             <button onClick={exportCSV} className="action-btn"><i className="fas fa-file-csv" /> Export CSV</button>
           </div>
         </header>
