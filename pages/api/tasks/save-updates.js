@@ -32,39 +32,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Days required must be a number ≥ 1' });
           }
 
-          const blockResult = await pool.request()
-            .input('taskId', sql.Int, taskId)
-            .query(`
-              SELECT CAST(CASE WHEN EXISTS (
-                SELECT 1
-                FROM tblTasks t2
-                INNER JOIN tblWorkflowDtl wd ON wd.TaskID = t2.TaskID
-                  AND wd.workFlowHdrId = (SELECT WorkFlowHdrID FROM tblTasks WHERE TaskID = @taskId)
-                INNER JOIN tblWorkflowHdr h2 ON h2.WorkFlowID = t2.WorkFlowHdrID
-                INNER JOIN tblProcessDepartment pd2 ON pd2.DepartmentID = t2.DepId AND pd2.ProcessID = h2.ProcessID
-                CROSS APPLY (
-                  SELECT pd.StepOrder AS so, t.Priority AS pri, t.TaskID AS tid
-                  FROM tblTasks t
-                  INNER JOIN tblWorkflowHdr h ON h.WorkFlowID = t.WorkFlowHdrID
-                  INNER JOIN tblProcessDepartment pd ON pd.DepartmentID = t.DepId AND pd.ProcessID = h.ProcessID
-                  WHERE t.TaskID = @taskId
-                ) cur
-                WHERE t2.TaskID <> @taskId
-                  AND t2.WorkFlowHdrID = (SELECT WorkFlowHdrID FROM tblTasks WHERE TaskID = @taskId)
-                  AND wd.TimeFinished IS NULL
-                  AND (
-                    pd2.StepOrder < cur.so
-                    OR (pd2.StepOrder = cur.so AND t2.Priority < cur.pri)
-                    OR (pd2.StepOrder = cur.so AND t2.Priority = cur.pri AND t2.TaskID < cur.tid)
-                  )
-              ) THEN 1 ELSE 0 END AS bit) AS Blocked
-            `);
-          if (blockResult.recordset[0]?.Blocked) {
-            return res.status(400).json({
-              error: 'Finish earlier workflow tasks (by step / priority) before changing days required.'
-            });
-          }
-
+         
           // PlannedDate = latest finished calendar day on this workflow (tblWorkflowDtl) + DaysRequired.
           // Excludes this task's own finish. If nothing finished yet, base = today.
           await pool.request()
@@ -76,7 +44,7 @@ export default async function handler(req, res) {
                 t.DaysRequired = @days,
                 t.PlannedDate = DATEADD(
                   DAY,
-                  @days,
+                  @days + 1,
                   CAST(COALESCE(
                     (SELECT MAX(CAST(wd.TimeFinished AS date))
                      FROM tblWorkflowDtl wd

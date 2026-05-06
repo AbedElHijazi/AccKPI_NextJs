@@ -209,7 +209,7 @@ export default async function handler(req, res) {
           .input('nextStep', sql.Int, StepOrder + 1)
           .query(`SELECT DepartmentID FROM tblProcessDepartment WHERE ProcessID = @processId AND StepOrder = @nextStep`);
 
-        // if (nextDeptInfoResult.recordset.length > 0) {
+        if (nextDeptInfoResult.recordset.length > 0) {
           const nextDepId = nextDeptInfoResult.recordset[0].DepartmentID;
 
           await pool.request()
@@ -291,9 +291,9 @@ export default async function handler(req, res) {
             handoffReason = emailErr?.message || 'email-error';
             console.error('Next department handoff email error:', emailErr);
           }
-        // } else {
-        //   handoffReason = 'no-next-department-step';
-        // }
+        } else {
+          handoffReason = 'no-next-department-step';
+        }
       } else {
         handoffReason = 'process-department-mapping-missing';
       }

@@ -48,6 +48,17 @@ DB_PASSWORD=sa
 DB_SERVER=10.10.2.123
 DB_DATABASE=AccDBF
 SESSION_SECRET=your-secret-key-min-32-characters-long!
+
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_REQUIRE_TLS=true
+SMTP_TLS_REJECT_UNAUTHORIZED=false
+SMTP_USER=no-reply@accsal.com
+SMTP_PASS=
+SMTP_FROM="ACC KPI <no-reply@accsal.com>"
+EMAIL_FROM="ACC KPI <no-reply@accsal.com>"
+HANDOFF_REPLY_TO="no-reply@gmail.com"
 ```
 
 ## Project Structure
