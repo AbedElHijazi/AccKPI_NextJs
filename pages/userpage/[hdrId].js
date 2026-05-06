@@ -547,20 +547,6 @@ export default function WorkflowUserPage() {
     showSuccess('Exported to CSV');
   };
 
-  const handleSendSmtpTestEmail = async () => {
-    try {
-      const res = await fetch('/api/tasks/send-smtp-test-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to send SMTP test email');
-      showSuccess(`Test email sent: ${data.from} -> ${data.to}`);
-    } catch (err) {
-      showError(err.message || 'Failed to send SMTP test email');
-    }
-  };
-
   // ─── Toggle helpers ────────────────────────────────────────
 
   const toggleDept = (depId) => {
@@ -709,7 +695,6 @@ export default function WorkflowUserPage() {
           </div>
           <div className="header-right">
             <button onClick={() => router.back()} className="action-btn"><i className="fas fa-arrow-left" /> Back</button>
-            <button onClick={handleSendSmtpTestEmail} className="action-btn"><i className="fas fa-paper-plane" /> Send Test Email</button>
             <button onClick={exportCSV} className="action-btn"><i className="fas fa-file-csv" /> Export CSV</button>
           </div>
         </header>
