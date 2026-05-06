@@ -57,7 +57,7 @@ export default function Layout({ children, user }) {
               {user && !user.usrAdmin && (
                 <>
                   <li className="nav-item">
-                    <Link className="nav-link" href="/workFlowDash">
+                    <Link className="nav-link" href="/workflowdashboard">
                       Dashboard
                     </Link>
                   </li>
@@ -66,11 +66,11 @@ export default function Layout({ children, user }) {
                       My Tasks
                     </Link>
                   </li>
-                  <li className="nav-item">
+                  {/* <li className="nav-item">
                     <Link className="nav-link" href="/taskhistory">
                       Task History
                     </Link>
-                  </li>
+                  </li> */}
                 </>
               )}
               
